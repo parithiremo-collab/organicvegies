@@ -5,11 +5,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { Plus } from "lucide-react";
+import type { Category } from "@shared/schema";
 
 interface FarmerProfile {
   id: string;
@@ -72,6 +74,14 @@ export default function FarmerDashboard() {
     queryKey: ["/api/farmer/analytics"],
     queryFn: async () => {
       const res = await fetch("/api/farmer/analytics");
+      return res.json();
+    },
+  });
+
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ["/api/categories"],
+    queryFn: async () => {
+      const res = await fetch("/api/categories");
       return res.json();
     },
   });
@@ -221,6 +231,18 @@ export default function FarmerDashboard() {
                 <DialogTitle>Add New Product</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
+                <Select value={productData.categoryId} onValueChange={(value) => setProductData({ ...productData, categoryId: value })}>
+                  <SelectTrigger data-testid="select-product-category">
+                    <SelectValue placeholder="Select Product Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Input
                   placeholder="Product Name"
                   value={productData.name}

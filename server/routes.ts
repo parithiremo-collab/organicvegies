@@ -202,11 +202,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(and(eq(cartItems.userId, userId), eq(cartItems.productId, productId)));
 
       if (existing.length > 0) {
+        const newQty = Number(existing[0].quantity) + Number(quantity);
         await db.update(cartItems)
-          .set({ quantity: existing[0].quantity + quantity })
+          .set({ quantity: newQty })
           .where(eq(cartItems.id, existing[0].id));
       } else {
-        await db.insert(cartItems).values({ userId, productId, quantity });
+        await db.insert(cartItems).values({ userId, productId, quantity: Number(quantity) });
       }
 
       res.json({ success: true });
@@ -330,11 +331,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         const itemPrice = parseFloat(product?.price?.toString() || '0');
+        const qty = Number(cartItem.quantity);
+        
         if (isNaN(itemPrice) || itemPrice < 0) {
           return res.status(400).json({ error: "Invalid product price" });
         }
         
-        const itemTotal = itemPrice * cartItem.quantity;
+        if (isNaN(qty) || qty <= 0 || !Number.isInteger(qty) || qty > 100000) {
+          return res.status(400).json({ error: "Invalid quantity in cart" });
+        }
+        
+        const itemTotal = itemPrice * qty;
         totalAmount += itemTotal;
         
         orderItemsData.push({
@@ -363,9 +370,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid order amount" });
       }
       
+      // Format totalAmount as fixed decimal
+      const finalAmount = parseFloat(totalAmount.toFixed(2));
+      if (!isFinite(finalAmount)) {
+        return res.status(400).json({ error: "Invalid order amount calculation" });
+      }
+      
       const orderData = {
         userId,
-        totalAmount: totalAmount.toString(),
+        totalAmount: finalAmount,
         status: "pending" as const,
         paymentStatus: "pending" as const,
         deliveryAddressLine1: deliveryAddress?.line1 || '',
@@ -781,23 +794,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Farmer: Add new product
   app.post("/api/farmer/products", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+      
       const { categoryId, name, description, imageUrl, price, mrp, origin, weight, stock } = req.body;
+
+      // Validate required fields
+      if (!categoryId || !name || !price || !weight || !stock === undefined) {
+        return res.status(400).json({ error: "Missing required fields: categoryId, name, price, weight, stock" });
+      }
+
+      // Validate categoryId exists
+      const categoryExists = await db.select().from(categories).where(eq(categories.id, categoryId));
+      if (!categoryExists || categoryExists.length === 0) {
+        return res.status(400).json({ error: "Invalid categoryId: category does not exist" });
+      }
 
       const product = await db.insert(products)
         .values({
           categoryId,
           farmerId: userId,
           name,
-          description,
-          imageUrl,
-          price,
-          mrp,
-          origin,
+          description: description || "",
+          imageUrl: imageUrl || "",
+          price: price.toString(),
+          mrp: mrp.toString() || price.toString(),
+          origin: origin || "",
           weight,
-          stock,
-          inStock: stock > 0,
-          lowStock: stock < 10,
+          stock: parseInt(stock),
+          inStock: parseInt(stock) > 0,
+          lowStock: parseInt(stock) < 10,
         })
         .returning();
 
