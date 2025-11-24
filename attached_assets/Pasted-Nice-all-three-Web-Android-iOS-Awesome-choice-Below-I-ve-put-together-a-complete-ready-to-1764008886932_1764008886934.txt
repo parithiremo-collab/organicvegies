@@ -1,0 +1,169 @@
+Nice — all three (Web + Android + iOS). Awesome choice. Below I’ve put together a complete, ready-to-execute **product & engineering specification** you can hand to developers or a build system. It includes recommended stack, full feature breakdown per user type, database schema (tables + key fields), API endpoints, deployment & infra guidance, QA/monitoring, and next deliverables I can produce for you immediately (pick one and I’ll generate it).
+
+# 📦 Recommended overall approach (high-level)
+
+* **Single backend (unified API)** serving Web + Mobile (React Native) + Admin dashboards.
+* **Shared business logic** so sellers/agents/admins see same canonical data.
+* Mobile apps use **React Native** (code reuse between Android & iOS).
+* Web: **Next.js (React)** for storefront + SSR/SEO pages.
+* Backend: **Node.js + NestJS** (type-safe, modular), **PostgreSQL** (relational for orders/inventory), **Redis** for caching & sessions, **Prisma ORM**.
+* UPI / Payments: integrate with **merchant PSPs** (Razorpay / PhonePe / Paytm) using their UPI SDKs / APIs + webhooks for settlement. (You will need merchant accounts & KYC with the PSPs.)
+* Hosting: AWS (ECS/Fargate or EKS) or Vercel (frontend) + RDS for Postgres. Use S3 for images.
+* Authentication: JWT + refresh tokens; OTP login for users (phone), KYC flows for sellers and agents.
+* File uploads: signed S3 URLs.
+* Notifications: FCM (mobile push) + Web push + transactional emails (SES / SendGrid).
+
+---
+
+# 👥 Features by role (concise)
+
+## Customer (Web & Mobile)
+
+* Phone OTP & email login; profile & addresses
+* Browse categories & search (filters: organic type, origin, weight, price)
+* Product pages with images, origin, grade, weight variants, stock
+* Cart, checkout flow with delivery-slot selection
+* UPI Pay (deep-link intent / QR option via PSP), fallback to card/netbanking
+* Coupons, wallet (store credits), order tracking, invoices (GST)
+* Ratings, reviews, reorder
+* Push notifications & order status updates
+* Referral & loyalty points
+
+## Seller / Farmer (Mobile + Web dashboard)
+
+* Seller onboarding + KYC upload (Aadhaar/PAN/Bank proof)
+* Product CRUD, inventory, batch upload (CSV)
+* Order receiving & acceptance, prepare/dispatch steps
+* Payout requests / settlement dashboard
+* Sales reports, returns, dispute resolution
+* Catalog scheduling (seasonal items)
+
+## Agent (Field rep mobile app)
+
+* Agent login & KYC
+* Add / onboard sellers with document capture (camera)
+* Verify sellers (admin-approved or agent-approved)
+* Agent wallet & commission ledger
+* Track assigned sellers, performance dashboard
+
+## Admin (Web super-admin)
+
+* Global analytics: users, orders, revenue, stock warnings
+* Manage categories, promoters, coupons, commissions
+* Seller approvals, disputes, manual settlements
+* Agent management & payout controls
+* Push notifications, email templates, logs
+* Role-based access control, audit logs
+
+---
+
+# 🧱 Database schema (core tables — abbreviated)
+
+(Use this to build an ER diagram)
+
+* **users**: id, name, phone, email, hashed_password, role (customer/seller/agent/admin), is_verified, created_at
+* **addresses**: id, user_id, label, line1, line2, city, state, pincode, location_lat, location_lng
+* **sellers**: id, user_id, shop_name, kyc_status, bank_account_id, gst_number, created_at
+* **agents**: id, user_id, assigned_area, commission_rate, verified_at
+* **categories**: id, name, parent_id, slug
+* **products**: id, seller_id, category_id, title, description, sku, hs_code, is_active, created_at
+* **product_variants**: id, product_id, variant_name (e.g., 1kg/500g), price, mrp, stock_qty, unit, weight
+* **product_images**: id, product_variant_id, s3_path, alt_text
+* **cart_items**: id, user_id, variant_id, qty, added_at
+* **orders**: id, user_id, seller_id, agent_id (nullable), total_amount, coupon_id, status, payment_status, delivery_slot, address_id, created_at
+* **order_items**: id, order_id, variant_id, price, qty, seller_commission, agent_commission
+* **payments**: id, order_id, amount, payment_method (UPI/PG), provider_txn_id, status, webhook_payload
+* **coupons**: id, code, discount_type, value, min_order_value, valid_from, valid_till, uses_left
+* **payouts**: id, recipient_type (seller/agent), recipient_id, amount, status, requested_at, processed_at
+* **reviews**: id, user_id, product_id, rating, comment, created_at
+* **audit_logs**: id, user_id, action, meta_json, created_at
+
+---
+
+# 🔌 API endpoints (representative — REST/GraphQL style)
+
+(Include authentication with JWT; admin routes under `/admin`)
+
+### Auth
+
+* `POST /auth/otp/request` — request OTP
+* `POST /auth/otp/verify` — verify OTP → return JWT + refresh
+* `POST /auth/login` — email/password
+* `POST /auth/refresh` — refresh tokens
+* `POST /auth/logout`
+
+### Customer
+
+* `GET /products` — list with filters
+* `GET /products/:slug`
+* `POST /cart` — add item
+* `GET /cart`
+* `POST /checkout` — create order (includes delivery slot)
+* `POST /payments/upi/initiate` — create payment request (PSP)
+* `POST /payments/webhook` — payment provider webhook
+* `GET /orders/:id` — order status
+
+### Seller
+
+* `POST /seller/onboard` — create seller profile + upload KYC
+* `POST /seller/products` — create product
+* `PUT /seller/products/:id` — update
+* `GET /seller/orders` — seller order list
+* `POST /seller/payouts/request`
+
+### Agent
+
+* `POST /agent/onboard_seller` — create seller lead
+* `GET /agent/commissions` — ledger
+
+### Admin
+
+* `GET /admin/dashboard`
+* `POST /admin/sellers/:id/approve`
+* `POST /admin/settlements/process` — manual settlement
+
+---
+
+# 💳 UPI & Payments (practical notes)
+
+* Integrate with **Razorpay / PhonePe / Paytm** merchant APIs. Use their SDKs for mobile (UPI Intent) and for web use PSP checkout widgets or UPI deep-links/QR.
+* For reconciliation, rely on PSP webhooks + regular reconciliation process (payments table + provider_txn_id).
+* Keep the UPI/PG credentials secret in vault (AWS Secrets Manager).
+* Implement idempotency keys on payment endpoints and retry-safe webhook handling.
+
+---
+
+# 🔐 Security & Compliance
+
+* KYC documents encrypted at rest (S3 + server-side encryption).
+* PCI scope reduced by using PSP-hosted checkout when possible.
+* Rate-limiting, WAF (AWS WAF), input validation, prepared statements (ORM).
+* Audit logs for admin actions and payout approvals.
+* GDPR/India privacy considerations: user data deletion flow.
+
+---
+
+# 📣 Observability, QA & Release
+
+* Logging: structured logs (Winston / Pino), central log aggregation (CloudWatch / ELK).
+* Metrics: Prometheus + Grafana or Datadog (orders, payment success rate, latency).
+* Crash reporting: Sentry for mobile + backend.
+* E2E tests: Playwright (web), Detox or Appium (mobile).
+* Unit tests: Jest for backend, React Testing Library for frontend.
+* Use staged environments: dev → staging → prod. Feature flags for gradual rollout (LaunchDarkly / homemade).
+
+---
+
+# 🧾 Deliverables I can generate for you now (pick any — I’ll produce it immediately)
+
+1. **Full DB schema (SQL/Prisma schema)** — exact fields & relations.
+2. **OpenAPI (Swagger) spec** for the APIs listed above.
+3. **Figma-like UI screen specs** (detailed descriptions & component list) for Web, Android, iOS.
+4. **Admin dashboard wireframe** (page-by-page).
+5. **Seller & Agent mobile flows** (interaction steps + screens).
+6. **CI/CD pipeline config** (GitHub Actions example).
+7. **Production infra diagram & Terraform snippet** (AWS-focused).
+8. **Test cases checklist** (smoke, regression, payment flows).
+9. **Sample implementation of checkout flow** (Next.js + API routes + payment flow pseudo-code).
+
+Tell me which number(s) you want and I’ll generate the artifact immediately. If you want me to pick a single best next step: I recommend I generate the **Prisma schema (deliverable #1)** and **OpenAPI spec (#2)** first — they give devs immediate workables for backend and integration. Which would you like me to produce right now?
