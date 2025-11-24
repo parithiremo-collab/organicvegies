@@ -194,6 +194,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing productId or quantity" });
       }
 
+      if (typeof quantity !== 'number' || quantity <= 0 || !Number.isInteger(quantity)) {
+        return res.status(400).json({ error: "Invalid quantity: must be a positive integer" });
+      }
+
       const existing = await db.select().from(cartItems)
         .where(and(eq(cartItems.userId, userId), eq(cartItems.productId, productId)));
 
