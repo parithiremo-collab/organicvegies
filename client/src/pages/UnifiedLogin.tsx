@@ -1,12 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Leaf, ShoppingCart, Users, Shield, Crown } from "lucide-react";
+import { useTranslation } from "@/i18n/useTranslation";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 interface RoleOption {
   role: string;
-  title: string;
-  description: string;
+  titleKey: string;
+  descKey: string;
   icon: any;
   color: string;
 }
@@ -14,42 +15,44 @@ interface RoleOption {
 const ROLES: RoleOption[] = [
   {
     role: "customer",
-    title: "🛒 Customer",
-    description: "Browse and purchase certified organic products with UPI/Card payments",
+    titleKey: "roleCustomer",
+    descKey: "roleCustomerDesc",
     icon: ShoppingCart,
     color: "bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800",
   },
   {
     role: "seller",
-    title: "👨‍🌾 Farmer",
-    description: "Produce and sell organic products, manage inventory, and track sales",
+    titleKey: "roleFarmer",
+    descKey: "roleFarmerDesc",
     icon: Leaf,
     color: "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800",
   },
   {
     role: "agent",
-    title: "🤝 Agent",
-    description: "Distribute products and earn commissions on sales facilitated",
+    titleKey: "roleAgent",
+    descKey: "roleAgentDesc",
     icon: Users,
     color: "bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800",
   },
   {
     role: "admin",
-    title: "👨‍💼 Admin",
-    description: "Moderate content and approve farmers and products for the platform",
+    titleKey: "roleAdmin",
+    descKey: "roleAdminDesc",
     icon: Shield,
     color: "bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-800",
   },
   {
     role: "superadmin",
-    title: "👑 Super Admin",
-    description: "Manage the entire platform, admins, and monitor all activities",
+    titleKey: "roleSuperAdmin",
+    descKey: "roleSuperAdminDesc",
     icon: Crown,
     color: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800",
   },
 ];
 
 export default function UnifiedLogin() {
+  const { t } = useTranslation();
+
   const handleLogin = () => {
     window.location.href = "/api/login";
   };
@@ -69,10 +72,10 @@ export default function UnifiedLogin() {
             </div>
           </div>
           <h1 className="text-5xl md:text-6xl font-bold mb-4 text-foreground">
-            FreshHarvest
+            {t("loginPageTitle")}
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl">
-            Join India's most trusted organic marketplace. Choose your role and get started.
+            {t("loginPageSubtitle")}
           </p>
         </div>
 
@@ -91,10 +94,10 @@ export default function UnifiedLogin() {
                   <div className="mb-6">
                     <div className="flex items-center gap-3 mb-3">
                       <Icon className="w-6 h-6" />
-                      <h3 className="text-lg font-bold">{role.title}</h3>
+                      <h3 className="text-lg font-bold">{t(role.titleKey)}</h3>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {role.description}
+                      {t(role.descKey)}
                     </p>
                   </div>
 
@@ -104,7 +107,7 @@ export default function UnifiedLogin() {
                     className="w-full"
                     data-testid={`button-login-${role.role}`}
                   >
-                    Login as {role.title.split(" ")[1]}
+                    {t("loginAs")} {t(role.titleKey)}
                   </Button>
                 </div>
               </Card>
@@ -117,26 +120,22 @@ export default function UnifiedLogin() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">
               <div className="text-3xl font-bold text-primary mb-2">100%</div>
-              <p className="text-muted-foreground">Certified Organic Products</p>
+              <p className="text-muted-foreground">{t("organicProducts")}</p>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-primary mb-2">Direct</div>
-              <p className="text-muted-foreground">Farm to Table Supply Chain</p>
+              <p className="text-muted-foreground">{t("farmToTable")}</p>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-primary mb-2">Fast</div>
-              <p className="text-muted-foreground">Same-Day Delivery Available</p>
+              <p className="text-muted-foreground">{t("fastDelivery")}</p>
             </div>
           </div>
         </div>
 
         {/* Footer Note */}
         <div className="mt-12 text-center text-sm text-muted-foreground">
-          <p>
-            All users login with the same credentials via Replit Auth.
-            <br />
-            Your role determines which dashboard you see.
-          </p>
+          <p>{t("loginNote")}</p>
         </div>
       </div>
     </div>
