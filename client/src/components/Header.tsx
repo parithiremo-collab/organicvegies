@@ -36,41 +36,29 @@ export default function Header({
               </SheetTrigger>
               <SheetContent side="left" className="w-64">
                 <nav className="flex flex-col gap-4 mt-8">
-                  <Link href="/">
-                    <a className="text-base font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-home-mobile">
-                      Home
-                    </a>
+                  <Link href="/" className="text-base font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-home-mobile">
+                    Home
                   </Link>
-                  <Link href="/categories">
-                    <a className="text-base font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-categories-mobile">
-                      Categories
-                    </a>
+                  <Link href="/categories" className="text-base font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-categories-mobile">
+                    Categories
                   </Link>
-                  <Link href="/deals">
-                    <a className="text-base font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-deals-mobile">
-                      Deals
-                    </a>
+                  <Link href="/deals" className="text-base font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-deals-mobile">
+                    Deals
                   </Link>
                 </nav>
               </SheetContent>
             </Sheet>
 
-            <Link href="/">
-              <a className="flex items-center gap-2" data-testid="link-logo">
-                <div className="font-accent text-2xl font-bold text-primary">FreshHarvest</div>
-              </a>
+            <Link href="/" className="flex items-center gap-2" data-testid="link-logo">
+              <div className="font-accent text-2xl font-bold text-primary">FreshHarvest</div>
             </Link>
 
             <nav className="hidden lg:flex items-center gap-6">
-              <Link href="/categories">
-                <a className="text-sm font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-categories">
-                  Categories
-                </a>
+              <Link href="/categories" className="text-sm font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-categories">
+                Categories
               </Link>
-              <Link href="/deals">
-                <a className="text-sm font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-deals">
-                  Deals
-                </a>
+              <Link href="/deals" className="text-sm font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-deals">
+                Deals
               </Link>
             </nav>
           </div>

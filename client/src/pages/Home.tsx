@@ -1,14 +1,15 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
-import CategoryGrid from "@/components/CategoryGrid";
-import ProductGrid from "@/components/ProductGrid";
+import CategoryCard from "@/components/CategoryCard";
+import ProductCard from "@/components/ProductCard";
 import FarmerSection from "@/components/FarmerSection";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
 import { useToast } from "@/hooks/use-toast";
-import tomatoesImage from "@assets/generated_images/tomatoes_product_sample.png";
-import bananasImage from "@assets/generated_images/bananas_product_sample.png";
+import type { Category, Product } from "@shared/schema";
 
 interface CartItem {
   id: string;
@@ -25,25 +26,30 @@ export default function Home() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const { toast } = useToast();
 
-  const handleAddToCart = (productId: string) => {
-    const productMap: Record<string, Omit<CartItem, 'quantity'>> = {
-      "tomatoes-1kg": {
-        id: "tomatoes-1kg",
-        name: "Organic Tomatoes on Vine",
-        image: tomatoesImage,
-        price: 85,
-        weight: "1 kg",
-      },
-      "bananas-6pcs": {
-        id: "bananas-6pcs",
-        name: "Organic Bananas",
-        image: bananasImage,
-        price: 48,
-        weight: "6 pcs",
-      },
-    };
+  // Fetch categories
+  const { 
+    data: categories = [], 
+    isLoading: categoriesLoading, 
+    isError: categoriesError,
+    refetch: refetchCategories
+  } = useQuery<Category[]>({
+    queryKey: ['/api/categories'],
+    retry: 2,
+  });
 
-    const product = productMap[productId];
+  // Fetch products
+  const { 
+    data: products = [], 
+    isLoading: productsLoading, 
+    isError: productsError,
+    refetch: refetchProducts
+  } = useQuery<Product[]>({
+    queryKey: ['/api/products'],
+    retry: 2,
+  });
+
+  const handleAddToCart = (productId: string) => {
+    const product = products.find(p => p.id === productId);
     if (!product) return;
 
     const existingItem = cartItems.find(item => item.id === productId);
@@ -59,7 +65,14 @@ export default function Home() {
         description: `Increased quantity of ${product.name}`,
       });
     } else {
-      setCartItems([...cartItems, { ...product, quantity: 1 }]);
+      setCartItems([...cartItems, { 
+        id: product.id,
+        name: product.name,
+        image: product.imageUrl,
+        price: parseFloat(product.price),
+        quantity: 1,
+        weight: product.weight,
+      }]);
       toast({
         title: "Added to cart",
         description: `${product.name} has been added to your cart`,
@@ -101,11 +114,104 @@ export default function Home() {
       
       <main className="flex-1">
         <Hero onShopNowClick={() => window.scrollTo({ top: 600, behavior: 'smooth' })} />
-        <CategoryGrid onCategoryClick={(category) => console.log('Category:', category)} />
-        <ProductGrid 
-          onAddToCart={handleAddToCart}
-          onProductClick={(id) => console.log('Product:', id)}
-        />
+        
+        {/* Categories Section */}
+        <section className="py-12 sm:py-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-8">
+            <div className="text-center mb-8">
+              <h2 className="font-accent text-3xl sm:text-4xl font-semibold mb-3">
+                Shop by Category
+              </h2>
+              <p className="text-muted-foreground text-lg">
+                Explore our fresh organic selection
+              </p>
+            </div>
+
+            {categoriesLoading ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-48 bg-muted animate-pulse rounded-lg" />
+                ))}
+              </div>
+            ) : categoriesError ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground mb-4">Failed to load categories. Please try again.</p>
+                <Button onClick={() => refetchCategories()} variant="outline" data-testid="button-retry-categories">
+                  Retry
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+                {categories.map((category) => (
+                  <CategoryCard
+                    key={category.id}
+                    name={category.name}
+                    image={category.imageUrl}
+                    productCount={category.productCount}
+                    onClick={() => console.log('Category:', category.slug)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Products Section */}
+        <section className="py-12 sm:py-16 bg-muted/30">
+          <div className="max-w-7xl mx-auto px-4 sm:px-8">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="font-accent text-3xl sm:text-4xl font-semibold mb-2">
+                  Fresh Arrivals
+                </h2>
+                <p className="text-muted-foreground text-lg">
+                  Handpicked organic produce delivered fresh
+                </p>
+              </div>
+            </div>
+
+            {productsLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <div key={i} className="h-96 bg-card animate-pulse rounded-lg" />
+                ))}
+              </div>
+            ) : productsError ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground mb-4">Failed to load products. Please try again.</p>
+                <Button onClick={() => refetchProducts()} variant="outline" data-testid="button-retry-products">
+                  Retry
+                </Button>
+              </div>
+            ) : products.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No products found.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {products.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    id={product.id}
+                    name={product.name}
+                    image={product.imageUrl}
+                    price={parseFloat(product.price)}
+                    mrp={parseFloat(product.mrp)}
+                    rating={parseFloat(product.rating)}
+                    reviewCount={product.reviewCount}
+                    origin={product.origin}
+                    inStock={product.inStock}
+                    lowStock={product.lowStock}
+                    weight={product.weight}
+                    onAddToCart={handleAddToCart}
+                    onClick={(id) => console.log('Product:', id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
         <FarmerSection />
       </main>
 
