@@ -4,6 +4,7 @@ import { type Server } from "node:http";
 
 import { nanoid } from "nanoid";
 import { type Express } from "express";
+import express from "express";
 import { createServer as createViteServer, createLogger } from "vite";
 
 import viteConfig from "../vite.config";
@@ -31,6 +32,7 @@ export async function setupVite(app: Express, server: Server) {
     appType: "custom",
   });
 
+  app.use(express.static(path.resolve(import.meta.dirname, "..", "public")));
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
