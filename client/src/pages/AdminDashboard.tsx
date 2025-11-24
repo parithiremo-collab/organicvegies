@@ -28,16 +28,30 @@ export default function AdminDashboard() {
   const { data: pendingFarmers = [] } = useQuery({
     queryKey: ["/api/admin/farmers/pending"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/farmers/pending");
-      return res.json();
+      try {
+        const res = await fetch("/api/admin/farmers/pending");
+        if (!res.ok) return [];
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error("Error fetching pending farmers:", error);
+        return [];
+      }
     },
   });
 
   const { data: pendingProducts = [] } = useQuery({
     queryKey: ["/api/admin/products/pending"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/products/pending");
-      return res.json();
+      try {
+        const res = await fetch("/api/admin/products/pending");
+        if (!res.ok) return [];
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error("Error fetching pending products:", error);
+        return [];
+      }
     },
   });
 
