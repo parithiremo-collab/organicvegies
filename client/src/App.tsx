@@ -7,7 +7,7 @@ import { LanguageProvider } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import Home from "@/pages/Home";
-import Landing from "@/pages/Landing";
+import UnifiedLogin from "@/pages/UnifiedLogin";
 import Checkout from "@/pages/Checkout";
 import Orders from "@/pages/Orders";
 import OrderDetail from "@/pages/OrderDetail";
@@ -40,7 +40,7 @@ function Router() {
     <Switch>
       {isLoading || !isAuthenticated ? (
         <>
-          <Route path="/" component={Landing} />
+          <Route path="/" component={UnifiedLogin} />
           <Route component={NotFound} />
         </>
       ) : (
