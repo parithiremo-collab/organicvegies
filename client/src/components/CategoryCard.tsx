@@ -18,24 +18,24 @@ export default function CategoryCard({ name, image, productCount, onClick }: Cat
   
   return (
     <Card 
-      className="group cursor-pointer overflow-hidden hover-elevate active-elevate-2"
+      className="group cursor-pointer overflow-hidden hover-elevate active-elevate-2 border"
       onClick={onClick}
       data-testid={`card-category-${name.toLowerCase()}`}
     >
-      <div className="aspect-[4/3] relative overflow-hidden">
+      <div className="aspect-[4/3] relative overflow-hidden bg-muted">
         <img 
           src={image} 
           alt={name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
         />
       </div>
-      <div className="p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-accent text-lg font-semibold">{displayName}</h3>
-            <p className="text-sm text-muted-foreground">{productCount} products</p>
+      <div className="p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1">
+            <h3 className="font-semibold text-base leading-tight">{displayName}</h3>
+            <p className="text-xs text-muted-foreground mt-1">{productCount} {productCount === 1 ? 'product' : 'products'}</p>
           </div>
-          <ArrowRight className="h-5 w-5 text-primary group-hover:translate-x-1 transition-transform" />
+          <ArrowRight className="h-5 w-5 text-primary flex-shrink-0 group-hover:translate-x-1 transition-transform" />
         </div>
       </div>
     </Card>
