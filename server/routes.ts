@@ -238,7 +238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/checkout", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { deliveryAddress, deliverySlot } = req.body;
+      const { deliveryAddress, deliverySlot, deliveryFee = 0 } = req.body;
 
       if (!deliveryAddress || !deliverySlot) {
         return res.status(400).json({ error: "Missing delivery details" });
@@ -257,8 +257,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch product details
       const productIds = cartData.map(item => item.productId);
+      if (productIds.length === 0) {
+        return res.status(400).json({ error: "No items in cart" });
+      }
+      
       const productDetails = await db.select().from(products)
-        .where(and(...productIds.map(id => eq(products.id, id) as any)));
+        .where(or(...productIds.map(id => eq(products.id, id) as any)));
 
       let totalAmount = 0;
       const orderItemsData = [];
@@ -279,6 +283,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           weight: product.weight,
         });
       }
+
+      // Add delivery fee to total
+      totalAmount += parseFloat(deliveryFee.toString()) || 0;
 
       // Create order
       const orderData = {
@@ -306,6 +313,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create Stripe checkout session
       const stripe = await getUncachableStripeClient();
+      console.log(`Creating Stripe session for order ${newOrder.id}, amount: ${totalAmount}`);
+      
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [{
@@ -327,6 +336,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId,
         },
       });
+      
+      console.log(`Stripe session created: ${session.id}`);
 
       // Update order with Stripe session ID
       await db.update(orders)
@@ -337,9 +348,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await db.delete(cartItems).where(eq(cartItems.userId, userId));
 
       res.json({ sessionId: session.id, orderId: newOrder.id });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating checkout session:", error);
-      res.status(500).json({ error: "Failed to create checkout session" });
+      const errorMessage = error?.message || error?.toString() || "Failed to create checkout session";
+      res.status(500).json({ error: errorMessage });
     }
   });
 
