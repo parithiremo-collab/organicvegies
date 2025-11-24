@@ -3,7 +3,7 @@ import { pgTable, text, varchar, integer, boolean, timestamp, decimal, pgEnum, j
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const userRoleEnum = pgEnum("user_role", ["customer", "seller", "agent", "admin", "superadmin"]);
+export const userRoleEnum = pgEnum("user_role", ["customer", "farmer", "seller", "agent", "admin", "superadmin"]);
 export const orderStatusEnum = pgEnum("order_status", ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "completed", "failed", "refunded"]);
 
