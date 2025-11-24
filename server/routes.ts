@@ -1,11 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./db";
-import { categories, products, cartItems, orders, orderItems } from "@shared/schema";
+import { categories, products, cartItems, orders, orderItems, users, farmerProfiles, agentProfiles, agentSales, agentFarmerRelations } from "@shared/schema";
 import { eq, and, or, ilike, gte, lte, desc } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { storage } from "./storage";
-import { insertCartItemSchema, insertOrderSchema, insertOrderItemSchema } from "@shared/schema";
+import { insertCartItemSchema, insertOrderSchema, insertOrderItemSchema, insertFarmerProfileSchema, insertAgentProfileSchema } from "@shared/schema";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -401,6 +401,215 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching order:", error);
       res.status(500).json({ error: "Failed to fetch order" });
+    }
+  });
+
+  // FARMER ROUTES
+  // Create/Update farmer profile
+  app.post("/api/farmer/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertFarmerProfileSchema.parse(req.body);
+
+      const existing = await db.select().from(farmerProfiles).where(eq(farmerProfiles.userId, userId));
+      
+      if (existing.length > 0) {
+        const updated = await db.update(farmerProfiles)
+          .set(data)
+          .where(eq(farmerProfiles.userId, userId))
+          .returning();
+        res.json(updated[0]);
+      } else {
+        const created = await db.insert(farmerProfiles)
+          .values({ ...data, userId })
+          .returning();
+        await db.update(users).set({ role: "seller" }).where(eq(users.id, userId));
+        res.json(created[0]);
+      }
+    } catch (error: any) {
+      console.error("Error managing farmer profile:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Get farmer profile
+  app.get("/api/farmer/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await db.select().from(farmerProfiles).where(eq(farmerProfiles.userId, userId));
+      res.json(profile[0] || null);
+    } catch (error) {
+      console.error("Error fetching farmer profile:", error);
+      res.status(500).json({ error: "Failed to fetch profile" });
+    }
+  });
+
+  // Farmer: Add new product
+  app.post("/api/farmer/products", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { categoryId, name, description, imageUrl, price, mrp, origin, weight, stock } = req.body;
+
+      const product = await db.insert(products)
+        .values({
+          categoryId,
+          farmerId: userId,
+          name,
+          description,
+          imageUrl,
+          price,
+          mrp,
+          origin,
+          weight,
+          stock,
+          inStock: stock > 0,
+          lowStock: stock < 10,
+        })
+        .returning();
+
+      res.json(product[0]);
+    } catch (error: any) {
+      console.error("Error creating product:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Farmer: Get my products
+  app.get("/api/farmer/products", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const myProducts = await db.select().from(products).where(eq(products.farmerId, userId));
+      res.json(myProducts);
+    } catch (error) {
+      console.error("Error fetching farmer products:", error);
+      res.status(500).json({ error: "Failed to fetch products" });
+    }
+  });
+
+  // Farmer: Update product
+  app.patch("/api/farmer/products/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const { price, stock, inStock } = req.body;
+
+      const [product] = await db.select().from(products).where(eq(products.id, id));
+      if (!product || product.farmerId !== userId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      const updated = await db.update(products)
+        .set({ price, stock, inStock: inStock !== undefined ? inStock : stock > 0, lowStock: stock < 10 })
+        .where(eq(products.id, id))
+        .returning();
+
+      res.json(updated[0]);
+    } catch (error: any) {
+      console.error("Error updating product:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Farmer: Get sales analytics
+  app.get("/api/farmer/analytics", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const farmerOrders = await db.select().from(orders)
+        .innerJoin(orderItems, eq(orders.id, orderItems.orderId))
+        .innerJoin(products, eq(orderItems.productId, products.id))
+        .where(eq(products.farmerId, userId));
+
+      const totalSales = farmerOrders.length;
+      const totalEarnings = farmerOrders.reduce((sum, record) => {
+        return sum + parseFloat(record.order_items.price) * record.order_items.quantity;
+      }, 0);
+
+      res.json({
+        totalSales,
+        totalEarnings: totalEarnings.toFixed(2),
+        recentOrders: farmerOrders.slice(-10)
+      });
+    } catch (error) {
+      console.error("Error fetching farmer analytics:", error);
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
+  // AGENT ROUTES
+  // Create/Update agent profile
+  app.post("/api/agent/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertAgentProfileSchema.parse(req.body);
+
+      const existing = await db.select().from(agentProfiles).where(eq(agentProfiles.userId, userId));
+      
+      if (existing.length > 0) {
+        const updated = await db.update(agentProfiles)
+          .set(data)
+          .where(eq(agentProfiles.userId, userId))
+          .returning();
+        res.json(updated[0]);
+      } else {
+        const created = await db.insert(agentProfiles)
+          .values({ ...data, userId })
+          .returning();
+        await db.update(users).set({ role: "agent" }).where(eq(users.id, userId));
+        res.json(created[0]);
+      }
+    } catch (error: any) {
+      console.error("Error managing agent profile:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Get agent profile
+  app.get("/api/agent/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await db.select().from(agentProfiles).where(eq(agentProfiles.userId, userId));
+      res.json(profile[0] || null);
+    } catch (error) {
+      console.error("Error fetching agent profile:", error);
+      res.status(500).json({ error: "Failed to fetch profile" });
+    }
+  });
+
+  // Agent: Get sales
+  app.get("/api/agent/sales", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const agentOrderSales = await db.select().from(agentSales).where(eq(agentSales.agentId, userId));
+      
+      const totalSales = agentOrderSales.length;
+      const totalCommission = agentOrderSales.reduce((sum, sale) => sum + parseFloat(sale.commission), 0);
+      const totalPaid = agentOrderSales.filter(s => s.isPaid).reduce((sum, s) => sum + parseFloat(s.commission), 0);
+
+      res.json({
+        totalSales,
+        totalCommission: totalCommission.toFixed(2),
+        totalPaid: totalPaid.toFixed(2),
+        pendingCommission: (totalCommission - totalPaid).toFixed(2),
+        sales: agentOrderSales
+      });
+    } catch (error) {
+      console.error("Error fetching agent sales:", error);
+      res.status(500).json({ error: "Failed to fetch sales" });
+    }
+  });
+
+  // Agent: Get connected farmers
+  app.get("/api/agent/farmers", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const relations = await db.select().from(agentFarmerRelations)
+        .where(eq(agentFarmerRelations.agentId, userId))
+        .innerJoin(farmerProfiles, eq(agentFarmerRelations.farmerId, farmerProfiles.userId));
+      
+      res.json(relations);
+    } catch (error) {
+      console.error("Error fetching connected farmers:", error);
+      res.status(500).json({ error: "Failed to fetch farmers" });
     }
   });
 

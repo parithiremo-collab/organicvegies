@@ -5,15 +5,26 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
 import Home from "@/pages/Home";
 import Landing from "@/pages/Landing";
 import Checkout from "@/pages/Checkout";
 import Orders from "@/pages/Orders";
 import OrderDetail from "@/pages/OrderDetail";
+import FarmerDashboard from "@/pages/FarmerDashboard";
+import AgentDashboard from "@/pages/AgentDashboard";
 import NotFound from "@/pages/not-found";
+
+interface UserData {
+  role: string;
+}
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
+  const { data: user } = useQuery<UserData>({
+    queryKey: ["/api/auth/user"],
+    enabled: isAuthenticated,
+  });
 
   if (isLoading) {
     return (
@@ -32,11 +43,25 @@ function Router() {
         </>
       ) : (
         <>
-          <Route path="/" component={Home} />
-          <Route path="/checkout" component={Checkout} />
-          <Route path="/orders" component={Orders} />
-          <Route path="/orders/:id" component={OrderDetail} />
-          <Route component={NotFound} />
+          {user?.role === "seller" ? (
+            <>
+              <Route path="/" component={FarmerDashboard} />
+              <Route component={NotFound} />
+            </>
+          ) : user?.role === "agent" ? (
+            <>
+              <Route path="/" component={AgentDashboard} />
+              <Route component={NotFound} />
+            </>
+          ) : (
+            <>
+              <Route path="/" component={Home} />
+              <Route path="/checkout" component={Checkout} />
+              <Route path="/orders" component={Orders} />
+              <Route path="/orders/:id" component={OrderDetail} />
+              <Route component={NotFound} />
+            </>
+          )}
         </>
       )}
     </Switch>

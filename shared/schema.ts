@@ -55,6 +55,8 @@ export const categories = pgTable("categories", {
 export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   categoryId: varchar("category_id").notNull().references(() => categories.id),
+  sellerId: varchar("seller_id").references(() => users.id),
+  farmerId: varchar("farmer_id").references(() => users.id),
   name: text("name").notNull(),
   description: text("description").notNull(),
   imageUrl: text("image_url").notNull(),
@@ -65,7 +67,61 @@ export const products = pgTable("products", {
   origin: text("origin").notNull(),
   inStock: boolean("in_stock").notNull().default(true),
   lowStock: boolean("low_stock").notNull().default(false),
+  stock: integer("stock").notNull().default(0),
   weight: text("weight").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Farmer profile
+export const farmerProfiles = pgTable("farmer_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  farmName: text("farm_name").notNull(),
+  farmArea: text("farm_area"),
+  farmingType: text("farming_type"), // "organic", "mixed", etc
+  certifications: text("certifications").array(),
+  bio: text("bio"),
+  profileImageUrl: text("profile_image_url"),
+  isVerified: boolean("is_verified").notNull().default(false),
+  totalProductsSold: integer("total_products_sold").notNull().default(0),
+  earnings: decimal("earnings", { precision: 12, scale: 2 }).notNull().default("0"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Agent profile
+export const agentProfiles = pgTable("agent_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  agentName: text("agent_name").notNull(),
+  companyName: text("company_name"),
+  serviceArea: text("service_area"),
+  commissionRate: decimal("commission_rate", { precision: 3, scale: 2 }).notNull().default("5.00"),
+  bio: text("bio"),
+  profileImageUrl: text("profile_image_url"),
+  isVerified: boolean("is_verified").notNull().default(false),
+  totalSales: integer("total_sales").notNull().default(0),
+  totalEarnings: decimal("total_earnings", { precision: 12, scale: 2 }).notNull().default("0"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Agent-Farmer relationship
+export const agentFarmerRelations = pgTable("agent_farmer_relations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  farmerId: varchar("farmer_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Agent sales commission tracking
+export const agentSales = pgTable("agent_sales", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => users.id),
+  orderId: varchar("order_id").notNull().references(() => orders.id),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  commissionRate: decimal("commission_rate", { precision: 3, scale: 2 }).notNull(),
+  commission: decimal("commission", { precision: 10, scale: 2 }).notNull(),
+  isPaid: boolean("is_paid").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -80,6 +136,7 @@ export const cartItems = pgTable("cart_items", {
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
+  agentId: varchar("agent_id").references(() => users.id),
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
   status: orderStatusEnum("status").notNull().default("pending"),
   paymentStatus: paymentStatusEnum("payment_status").notNull().default("pending"),
@@ -104,6 +161,7 @@ export const orderItems = pgTable("order_items", {
   weight: text("weight").notNull(),
 });
 
+// Schema validators
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   firstName: true,
@@ -140,6 +198,19 @@ export const insertOrderItemSchema = createInsertSchema(orderItems).omit({
   id: true,
 });
 
+export const insertFarmerProfileSchema = createInsertSchema(farmerProfiles).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+});
+
+export const insertAgentProfileSchema = createInsertSchema(agentProfiles).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+});
+
+// Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
@@ -160,3 +231,12 @@ export type Order = typeof orders.$inferSelect;
 
 export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
 export type OrderItem = typeof orderItems.$inferSelect;
+
+export type InsertFarmerProfile = z.infer<typeof insertFarmerProfileSchema>;
+export type FarmerProfile = typeof farmerProfiles.$inferSelect;
+
+export type InsertAgentProfile = z.infer<typeof insertAgentProfileSchema>;
+export type AgentProfile = typeof agentProfiles.$inferSelect;
+
+export type AgentSale = typeof agentSales.$inferSelect;
+export type AgentFarmerRelation = typeof agentFarmerRelations.$inferSelect;
