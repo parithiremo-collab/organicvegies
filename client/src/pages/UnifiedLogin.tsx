@@ -4,6 +4,7 @@ import { Leaf, ShoppingCart, Users, Shield, Crown } from "lucide-react";
 import { useTranslation } from "@/i18n/useTranslation";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useState } from "react";
+import { queryClient } from "@/lib/queryClient";
 
 interface RoleOption {
   role: string;
@@ -69,6 +70,8 @@ export default function UnifiedLogin() {
       });
 
       if (response.ok) {
+        // Invalidate the auth cache to force refetch after login
+        await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
         // Redirect to dashboard
         window.location.href = "/";
       } else {
