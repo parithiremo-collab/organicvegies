@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Leaf, ShoppingCart, Users, Shield, Crown } from "lucide-react";
 import { useTranslation } from "@/i18n/useTranslation";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { useState } from "react";
 
 interface RoleOption {
   role: string;
@@ -52,9 +53,33 @@ const ROLES: RoleOption[] = [
 
 export default function UnifiedLogin() {
   const { t } = useTranslation();
+  const [loadingRole, setLoadingRole] = useState<string | null>(null);
+  const isDev = import.meta.env.DEV;
 
   const handleLogin = () => {
     window.location.href = "/api/login";
+  };
+
+  const handleTestLogin = async (role: string) => {
+    setLoadingRole(role);
+    try {
+      const response = await fetch(`/api/test/login/${role}`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        // Redirect to dashboard
+        window.location.href = "/";
+      } else {
+        alert("Test login failed");
+        setLoadingRole(null);
+      }
+    } catch (error) {
+      console.error("Test login error:", error);
+      alert("Test login error");
+      setLoadingRole(null);
+    }
   };
 
   return (
@@ -103,11 +128,12 @@ export default function UnifiedLogin() {
 
                   {/* Login Button */}
                   <Button
-                    onClick={handleLogin}
+                    onClick={() => isDev ? handleTestLogin(role.role) : handleLogin()}
+                    disabled={loadingRole === role.role}
                     className="w-full"
                     data-testid={`button-login-${role.role}`}
                   >
-                    {t("loginAs")} {t(role.titleKey)}
+                    {loadingRole === role.role ? "Logging in..." : `${t("loginAs")} ${t(role.titleKey)}`}
                   </Button>
                 </div>
               </Card>
