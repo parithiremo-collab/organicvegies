@@ -3,8 +3,28 @@ import { createServer, type Server } from "http";
 import { db } from "./db";
 import { categories, products } from "@shared/schema";
 import { eq, and, or, ilike, gte, lte, desc } from "drizzle-orm";
+import { setupAuth, isAuthenticated } from "./replitAuth";
+import { storage } from "./storage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Setup authentication (MANDATORY for Replit Auth)
+  await setupAuth(app);
+
+  // Auth endpoint to fetch current user
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
   // Get all categories
   app.get("/api/categories", async (req, res) => {
     try {

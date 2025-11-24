@@ -1,14 +1,37 @@
-// Storage interface for the application
-// We'll use Drizzle ORM directly in routes for database operations
+import { db } from "./db";
+import { users } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import type { User } from "@shared/schema";
 
+// Replit Auth integration: https://replit.com/oidc
 export interface IStorage {
-  // Placeholder for future storage methods if needed
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: { id: string; email?: string | null; firstName?: string | null; lastName?: string | null; profileImageUrl?: string | null }): Promise<User>;
 }
 
-export class MemStorage implements IStorage {
-  constructor() {
-    // Memory storage no longer used - using PostgreSQL
+export class DatabaseStorage implements IStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: { id: string; email?: string | null; firstName?: string | null; lastName?: string | null; profileImageUrl?: string | null }): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          email: userData.email,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          profileImageUrl: userData.profileImageUrl,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

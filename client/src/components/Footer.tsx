@@ -36,31 +36,23 @@ export default function Footer({ onNewsletterSubmit }: FooterProps) {
             <h4 className="font-semibold mb-4">Customer Service</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/help">
-                  <a className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-help">
-                    Help Center
-                  </a>
+                <Link href="/help" className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-help">
+                  Help Center
                 </Link>
               </li>
               <li>
-                <Link href="/track-order">
-                  <a className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-track-order">
-                    Track Order
-                  </a>
+                <Link href="/track-order" className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-track-order">
+                  Track Order
                 </Link>
               </li>
               <li>
-                <Link href="/shipping">
-                  <a className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-shipping">
-                    Shipping Info
-                  </a>
+                <Link href="/shipping" className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-shipping">
+                  Shipping Info
                 </Link>
               </li>
               <li>
-                <Link href="/returns">
-                  <a className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-returns">
-                    Returns & Refunds
-                  </a>
+                <Link href="/returns" className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-returns">
+                  Returns & Refunds
                 </Link>
               </li>
             </ul>
@@ -70,24 +62,18 @@ export default function Footer({ onNewsletterSubmit }: FooterProps) {
             <h4 className="font-semibold mb-4">Policies</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/privacy">
-                  <a className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-privacy">
-                    Privacy Policy
-                  </a>
+                <Link href="/privacy" className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-privacy">
+                  Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="/terms">
-                  <a className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-terms">
-                    Terms of Service
-                  </a>
+                <Link href="/terms" className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-terms">
+                  Terms of Service
                 </Link>
               </li>
               <li>
-                <Link href="/quality">
-                  <a className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-quality">
-                    Quality Guarantee
-                  </a>
+                <Link href="/quality" className="text-muted-foreground hover:text-foreground hover-elevate px-2 py-1 rounded-md inline-block" data-testid="link-quality">
+                  Quality Guarantee
                 </Link>
               </li>
             </ul>
