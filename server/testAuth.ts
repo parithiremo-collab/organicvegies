@@ -140,6 +140,26 @@ export function setupTestAuth(app: Express) {
 
   console.log("🧪 Setting up test authentication for development...");
 
+  // Helper: Promisify req.login
+  const loginAsync = (req: any, user: any): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      req.login(user, (err: any) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  };
+
+  // Helper: Promisify req.logout
+  const logoutAsync = (req: any): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      req.logout((err: any) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  };
+
   // Test login endpoint - creates a fake session with the test user
   app.post("/api/test/login/:role", async (req: any, res) => {
     const { role } = req.params;
@@ -167,26 +187,24 @@ export function setupTestAuth(app: Express) {
         expires_at: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, // 1 week
       };
 
-      // Store in session
+      // Store in session using async/await
       req.user = fakeUser;
-      req.login(fakeUser, (err: any) => {
-        if (err) {
-          return res.status(500).json({ error: "Login failed", details: err.message });
-        }
-        res.json({
-          success: true,
-          message: `✅ Logged in as ${role}: ${testUser.email}`,
-          user: {
-            id: testUser.id,
-            email: testUser.email,
-            firstName: testUser.firstName,
-            lastName: testUser.lastName,
-            role: testUser.role,
-          },
-        });
+      await loginAsync(req, fakeUser);
+
+      // Return success response
+      return res.json({
+        success: true,
+        message: `✅ Logged in as ${role}: ${testUser.email}`,
+        user: {
+          id: testUser.id,
+          email: testUser.email,
+          firstName: testUser.firstName,
+          lastName: testUser.lastName,
+          role: testUser.role,
+        },
       });
     } catch (error: any) {
-      res.status(500).json({
+      return res.status(500).json({
         error: "Test login failed",
         details: error.message,
       });
@@ -194,13 +212,13 @@ export function setupTestAuth(app: Express) {
   });
 
   // Test logout endpoint
-  app.post("/api/test/logout", (req: any, res) => {
-    req.logout((err: any) => {
-      if (err) {
-        return res.status(500).json({ error: "Logout failed" });
-      }
-      res.json({ success: true, message: "Logged out successfully" });
-    });
+  app.post("/api/test/logout", async (req: any, res) => {
+    try {
+      await logoutAsync(req);
+      return res.json({ success: true, message: "Logged out successfully" });
+    } catch (error: any) {
+      return res.status(500).json({ error: "Logout failed", details: error.message });
+    }
   });
 
   // Get all test users endpoint
