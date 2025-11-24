@@ -178,6 +178,9 @@ export const orders = pgTable("orders", {
   deliveryPincode: text("delivery_pincode").notNull(),
   deliverySlot: text("delivery_slot").notNull(),
   stripeSessionId: text("stripe_session_id"),
+  razorpayOrderId: text("razorpay_order_id"),
+  razorpayPaymentId: text("razorpay_payment_id"),
+  paymentMethod: text("payment_method").default("card"), // 'upi', 'card'
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -8,6 +8,7 @@ import { setupTestAuth, setupSessionMiddleware } from "./testAuth";
 import { storage } from "./storage";
 import { insertCartItemSchema, insertOrderSchema, insertOrderItemSchema, insertFarmerProfileSchema, insertAgentProfileSchema, insertAdminProfileSchema, insertSuperAdminProfileSchema } from "@shared/schema";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import { getRazorpayClient } from "./razorpayClient";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication based on configuration
@@ -310,6 +311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         deliveryState: deliveryAddress.state,
         deliveryPincode: deliveryAddress.pincode,
         deliverySlot,
+        paymentMethod: paymentMethod || 'card',
       };
 
       const [newOrder] = await db.insert(orders).values(orderData).returning();
@@ -322,50 +324,184 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Create Stripe checkout session
-      const stripe = await getUncachableStripeClient();
-      console.log(`Creating Stripe session for order ${newOrder.id}, amount: ${totalAmount}, paymentMethod: ${paymentMethod}`);
-      
-      const paymentMethodTypes = paymentMethod === 'upi' ? ['upi'] : ['card'];
-      
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: paymentMethodTypes as any,
-        line_items: [{
-          price_data: {
-            currency: 'inr',
-            product_data: {
-              name: 'FreshHarvest Order',
-              description: `Order #${newOrder.id}`,
-            },
-            unit_amount: Math.round(totalAmount * 100),
-          },
-          quantity: 1,
-        }],
-        mode: 'payment',
-        success_url: `${req.protocol}://${req.get('host')}/orders/${newOrder.id}?success=true`,
-        cancel_url: `${req.protocol}://${req.get('host')}/checkout?cancelled=true`,
-        metadata: {
+      // Handle Razorpay UPI or Stripe Card
+      if (paymentMethod === 'upi') {
+        // Create Razorpay order for UPI
+        const razorpay = getRazorpayClient();
+        const razorpayOrder = await razorpay.createOrder(
+          totalAmount,
+          newOrder.id,
+          `FreshHarvest Order ${newOrder.id}`
+        );
+
+        // Update order with Razorpay order ID
+        await db.update(orders)
+          .set({ razorpayOrderId: razorpayOrder.id })
+          .where(eq(orders.id, newOrder.id));
+
+        // Clear cart
+        await db.delete(cartItems).where(eq(cartItems.userId, userId));
+
+        res.json({
           orderId: newOrder.id,
-          userId,
-          paymentMethod,
-        },
-      });
-      
-      console.log(`Stripe session created: ${session.id}`);
+          razorpayOrderId: razorpayOrder.id,
+          amount: totalAmount,
+          currency: 'INR',
+          paymentMethod: 'upi',
+        });
+      } else {
+        // Create Stripe checkout session for card
+        const stripe = await getUncachableStripeClient();
+        console.log(`Creating Stripe session for order ${newOrder.id}, amount: ${totalAmount}, paymentMethod: ${paymentMethod}`);
+        
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          line_items: [{
+            price_data: {
+              currency: 'inr',
+              product_data: {
+                name: 'FreshHarvest Order',
+                description: `Order #${newOrder.id}`,
+              },
+              unit_amount: Math.round(totalAmount * 100),
+            },
+            quantity: 1,
+          }],
+          mode: 'payment',
+          success_url: `${req.protocol}://${req.get('host')}/orders/${newOrder.id}?success=true`,
+          cancel_url: `${req.protocol}://${req.get('host')}/checkout?cancelled=true`,
+          metadata: {
+            orderId: newOrder.id,
+            userId,
+            paymentMethod,
+          },
+        });
+        
+        console.log(`Stripe session created: ${session.id}`);
 
-      // Update order with Stripe session ID
-      await db.update(orders)
-        .set({ stripeSessionId: session.id })
-        .where(eq(orders.id, newOrder.id));
+        // Update order with Stripe session ID
+        await db.update(orders)
+          .set({ stripeSessionId: session.id })
+          .where(eq(orders.id, newOrder.id));
 
-      // Clear cart
-      await db.delete(cartItems).where(eq(cartItems.userId, userId));
+        // Clear cart
+        await db.delete(cartItems).where(eq(cartItems.userId, userId));
 
-      res.json({ sessionId: session.id, orderId: newOrder.id });
+        res.json({ sessionId: session.id, orderId: newOrder.id, paymentMethod: 'card' });
+      }
     } catch (error: any) {
       console.error("Error creating checkout session:", error);
       const errorMessage = error?.message || error?.toString() || "Failed to create checkout session";
       res.status(500).json({ error: errorMessage });
+    }
+  });
+
+  // Razorpay: Create UPI order
+  app.post("/api/razorpay/create-order", isAuthenticated, async (req: any, res) => {
+    try {
+      const { orderId } = req.body;
+      if (!orderId) {
+        return res.status(400).json({ error: "Order ID required" });
+      }
+
+      const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      const razorpay = getRazorpayClient();
+      const razorpayOrder = await razorpay.createOrder(
+        parseFloat(order.totalAmount),
+        orderId,
+        `FreshHarvest Order ${orderId}`
+      );
+
+      // Update order with Razorpay order ID
+      await db.update(orders)
+        .set({ razorpayOrderId: razorpayOrder.id })
+        .where(eq(orders.id, orderId));
+
+      res.json({
+        razorpayOrderId: razorpayOrder.id,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+      });
+    } catch (error: any) {
+      console.error("Error creating Razorpay order:", error);
+      res.status(500).json({ error: error.message || "Failed to create Razorpay order" });
+    }
+  });
+
+  // Razorpay: Verify payment
+  app.post("/api/razorpay/verify-payment", isAuthenticated, async (req: any, res) => {
+    try {
+      const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+
+      if (!orderId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+        return res.status(400).json({ error: "Missing required payment fields" });
+      }
+
+      const razorpay = getRazorpayClient();
+      const isValid = await razorpay.verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+
+      if (!isValid) {
+        return res.status(400).json({ error: "Payment verification failed" });
+      }
+
+      // Update order with payment details
+      await db.update(orders)
+        .set({
+          razorpayPaymentId,
+          paymentStatus: "completed" as const,
+          status: "confirmed" as const,
+        })
+        .where(eq(orders.id, orderId));
+
+      res.json({
+        success: true,
+        orderId,
+        paymentId: razorpayPaymentId,
+      });
+    } catch (error: any) {
+      console.error("Error verifying Razorpay payment:", error);
+      res.status(500).json({ error: error.message || "Payment verification failed" });
+    }
+  });
+
+  // Razorpay: Get QR code for UPI payment
+  app.get("/api/razorpay/qr-code/:orderId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { orderId } = req.params;
+
+      const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      if (!order.razorpayOrderId) {
+        return res.status(400).json({ error: "Razorpay order not initialized" });
+      }
+
+      // Generate QR code URL - Razorpay provides this via their dashboard
+      // For now, return the UPI intent link
+      const razorpay = getRazorpayClient();
+      const upiLink = razorpay.generateUPILink(
+        orderId,
+        parseFloat(order.totalAmount),
+        req.user.claims.sub,
+        req.user.email || ''
+      );
+
+      res.json({
+        orderId,
+        razorpayOrderId: order.razorpayOrderId,
+        amount: order.totalAmount,
+        upiLink,
+        // QR code can be generated client-side using libraries like qrcode.js
+      });
+    } catch (error: any) {
+      console.error("Error generating QR code:", error);
+      res.status(500).json({ error: "Failed to generate QR code" });
     }
   });
 
