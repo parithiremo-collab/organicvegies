@@ -166,7 +166,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Cart endpoints (protected)
   app.get("/api/cart", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
       const items = await db.select({
         id: cartItems.id,
         productId: cartItems.productId,
@@ -181,7 +184,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/cart", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
       const { productId, quantity } = req.body;
       
       if (!productId || !quantity) {
@@ -292,13 +298,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch product details
       const productIds = cartData.map(item => item?.productId).filter(Boolean);
-      if (productIds.length === 0) {
+      if (!productIds || productIds.length === 0) {
         return res.status(400).json({ error: "No items in cart" });
       }
       
-      const productDetails = await db.select().from(products)
-        .where(or(...productIds.map(id => eq(products.id, id) as any)));
-
+      let productDetails = [];
+      if (productIds.length > 0) {
+        productDetails = await db.select().from(products)
+          .where(or(...productIds.map(id => eq(products.id, id) as any)));
+      }
+      
       if (!productDetails || productDetails.length === 0) {
         return res.status(400).json({ error: "Products not found" });
       }
@@ -365,12 +374,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const orderResult = await db.insert(orders).values(orderData).returning();
-      if (!orderResult || orderResult.length === 0) {
+      if (!orderResult || !Array.isArray(orderResult) || orderResult.length === 0) {
         return res.status(500).json({ error: "Failed to create order" });
       }
       
       const newOrder = orderResult[0];
-      if (!newOrder?.id) {
+      if (!newOrder || !newOrder.id) {
         return res.status(500).json({ error: "Invalid order created" });
       }
 
@@ -513,7 +522,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid Order ID format" });
       }
 
-      const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+      const orderResult = await db.select().from(orders).where(eq(orders.id, orderId));
+      const order = orderResult?.[0];
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
@@ -572,6 +582,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       try {
         const razorpay = getRazorpayClient();
+        if (!razorpay) {
+          return res.status(500).json({ error: "Payment gateway not initialized" });
+        }
+        
         const isValid = await razorpay.verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
 
         if (!isValid) {
@@ -580,7 +594,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Verify order exists and belongs to user
-        const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+        const orderResult = await db.select().from(orders).where(eq(orders.id, orderId));
+        const order = orderResult?.[0];
         if (!order) {
           return res.status(404).json({ error: "Order not found" });
         }
@@ -1049,31 +1064,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { email } = req.body;
       
-      const [existingUser] = await db.select().from(users).where(eq(users.email, email));
+      if (!email || typeof email !== 'string' || !email.includes('@')) {
+        return res.status(400).json({ error: "Invalid email address" });
+      }
+      
+      const existingUserResult = await db.select().from(users).where(eq(users.email, email));
+      const existingUser = existingUserResult?.[0];
       let userId = existingUser?.id;
       
       if (!userId) {
-        const newUser = await db.insert(users).values({
+        const newUserResult = await db.insert(users).values({
           email,
           role: "admin",
         }).returning();
-        userId = newUser[0].id;
+        
+        if (!newUserResult || !Array.isArray(newUserResult) || newUserResult.length === 0) {
+          return res.status(500).json({ error: "Failed to create user" });
+        }
+        
+        userId = newUserResult[0]?.id;
+        if (!userId) {
+          return res.status(500).json({ error: "Failed to get user ID" });
+        }
       }
       
-      const adminProfile = await db.insert(adminProfiles).values({
+      const emailParts = email.split("@");
+      const adminName = emailParts[0] || 'Admin';
+      
+      const adminProfileResult = await db.insert(adminProfiles).values({
         userId,
-        adminName: email.split("@")[0],
+        adminName,
       }).returning();
       
-      await db.insert(auditLogs).values({
-        adminId: req.user.claims.sub,
-        action: "CREATE_ADMIN",
-        targetType: "admin",
-        targetId: userId,
-        details: { email },
-      });
+      if (!adminProfileResult || !Array.isArray(adminProfileResult) || adminProfileResult.length === 0) {
+        return res.status(500).json({ error: "Failed to create admin profile" });
+      }
       
-      res.json(adminProfile[0]);
+      const adminId = req.user?.claims?.sub;
+      if (adminId) {
+        await db.insert(auditLogs).values({
+          adminId,
+          action: "CREATE_ADMIN",
+          targetType: "admin",
+          targetId: userId,
+          details: { email },
+        }).catch(err => console.error("Audit log error:", err));
+      }
+      
+      res.json(adminProfileResult[0]);
     } catch (error: any) {
       console.error("Error creating admin:", error);
       res.status(400).json({ error: error.message });
