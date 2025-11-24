@@ -66,7 +66,7 @@ export default function Landing() {
               <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20 dark:from-primary/10 dark:to-secondary/10 rounded-2xl blur-3xl" />
               <div className="relative bg-gradient-to-br from-white/50 to-white/30 dark:from-white/10 dark:to-white/5 backdrop-blur-sm rounded-2xl p-8 border border-primary/20 dark:border-primary/30">
                 <img 
-                  src="/ulavar-angadi-logo.jpg" 
+                  src="/ulavar-angadi-logo.png" 
                   alt="Ulavar Angadi Logo" 
                   className="h-72 md:h-96 object-contain drop-shadow-lg" 
                 />
