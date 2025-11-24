@@ -27,7 +27,7 @@ export const TEST_USERS = {
     email: "farmer@test.local",
     firstName: "Test",
     lastName: "Farmer",
-    role: "seller",
+    role: "farmer",
   },
   agent: {
     id: "test-agent-1",
