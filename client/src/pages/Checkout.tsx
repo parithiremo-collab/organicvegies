@@ -32,6 +32,7 @@ export default function Checkout() {
     pincode: '',
   });
   const [deliverySlot, setDeliverySlot] = useState('morning');
+  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card'>('upi');
 
   const { data: products = [] } = useQuery<Product[]>({
     queryKey: ['/api/products'],
@@ -63,7 +64,7 @@ export default function Checkout() {
 
   const checkoutMutation = useMutation({
     mutationFn: async () => {
-      console.log('Starting checkout...', { deliveryAddress, deliverySlot, deliveryFee });
+      console.log('Starting checkout...', { deliveryAddress, deliverySlot, deliveryFee, paymentMethod });
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -71,6 +72,7 @@ export default function Checkout() {
           deliveryAddress, 
           deliverySlot,
           deliveryFee,
+          paymentMethod,
         }),
       });
       const data = await res.json();
@@ -196,6 +198,29 @@ export default function Checkout() {
                       {slot.charAt(0).toUpperCase() + slot.slice(1)}
                     </Button>
                   ))}
+                </div>
+              </Card>
+
+              {/* Payment Method */}
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Payment Method</h2>
+                <div className="flex gap-4 flex-wrap">
+                  <Button
+                    variant={paymentMethod === 'upi' ? "default" : "outline"}
+                    onClick={() => setPaymentMethod('upi')}
+                    data-testid="button-payment-upi"
+                    className="flex-1"
+                  >
+                    UPI
+                  </Button>
+                  <Button
+                    variant={paymentMethod === 'card' ? "default" : "outline"}
+                    onClick={() => setPaymentMethod('card')}
+                    data-testid="button-payment-card"
+                    className="flex-1"
+                  >
+                    Credit/Debit Card
+                  </Button>
                 </div>
               </Card>
             </div>

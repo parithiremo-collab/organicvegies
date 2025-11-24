@@ -238,7 +238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/checkout", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { deliveryAddress, deliverySlot, deliveryFee = 0 } = req.body;
+      const { deliveryAddress, deliverySlot, deliveryFee = 0, paymentMethod = 'card' } = req.body;
 
       if (!deliveryAddress || !deliverySlot) {
         return res.status(400).json({ error: "Missing delivery details" });
@@ -313,10 +313,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create Stripe checkout session
       const stripe = await getUncachableStripeClient();
-      console.log(`Creating Stripe session for order ${newOrder.id}, amount: ${totalAmount}`);
+      console.log(`Creating Stripe session for order ${newOrder.id}, amount: ${totalAmount}, paymentMethod: ${paymentMethod}`);
+      
+      const paymentMethodTypes = paymentMethod === 'upi' ? ['upi'] : ['card'];
       
       const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
+        payment_method_types: paymentMethodTypes as any,
         line_items: [{
           price_data: {
             currency: 'inr',
@@ -334,6 +336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         metadata: {
           orderId: newOrder.id,
           userId,
+          paymentMethod,
         },
       });
       
