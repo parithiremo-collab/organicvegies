@@ -33,7 +33,7 @@ export default function Footer({ onNewsletterSubmit }: FooterProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <img src="/ulavar-angadi-logo.png" alt="Ulavar Angadi" className="h-8 object-contain" />
+              <img src="/ulavar-angadi-logo.jpg" alt="Ulavar Angadi" className="h-8 object-contain" />
               <h3 className="font-accent text-xl font-bold text-primary">Ulavar Angadi</h3>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
