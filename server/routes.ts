@@ -1,11 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./db";
-import { categories, products, cartItems } from "@shared/schema";
+import { categories, products, cartItems, orders, orderItems } from "@shared/schema";
 import { eq, and, or, ilike, gte, lte, desc } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { storage } from "./storage";
-import { insertCartItemSchema } from "@shared/schema";
+import { insertCartItemSchema, insertOrderSchema, insertOrderItemSchema } from "@shared/schema";
+import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication (MANDATORY for Replit Auth)
@@ -219,6 +220,172 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error removing from cart:", error);
       res.status(500).json({ error: "Failed to remove item from cart" });
+    }
+  });
+
+  // Get Stripe publishable key
+  app.get("/api/stripe/publishable-key", async (req, res) => {
+    try {
+      const key = await getStripePublishableKey();
+      res.json({ publishableKey: key });
+    } catch (error) {
+      console.error("Error fetching Stripe key:", error);
+      res.status(500).json({ error: "Failed to fetch Stripe key" });
+    }
+  });
+
+  // Create checkout session
+  app.post("/api/checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { deliveryAddress, deliverySlot } = req.body;
+
+      if (!deliveryAddress || !deliverySlot) {
+        return res.status(400).json({ error: "Missing delivery details" });
+      }
+
+      // Get cart items
+      const cartData = await db.select({
+        id: cartItems.id,
+        productId: cartItems.productId,
+        quantity: cartItems.quantity,
+      }).from(cartItems).where(eq(cartItems.userId, userId));
+
+      if (cartData.length === 0) {
+        return res.status(400).json({ error: "Cart is empty" });
+      }
+
+      // Fetch product details
+      const productIds = cartData.map(item => item.productId);
+      const productDetails = await db.select().from(products)
+        .where(and(...productIds.map(id => eq(products.id, id) as any)));
+
+      let totalAmount = 0;
+      const orderItemsData = [];
+
+      for (const cartItem of cartData) {
+        const product = productDetails.find(p => p.id === cartItem.productId);
+        if (!product) {
+          return res.status(400).json({ error: "Product not found" });
+        }
+        const itemTotal = parseFloat(product.price) * cartItem.quantity;
+        totalAmount += itemTotal;
+        orderItemsData.push({
+          productId: product.id,
+          productName: product.name,
+          productImage: product.imageUrl,
+          price: product.price,
+          quantity: cartItem.quantity,
+          weight: product.weight,
+        });
+      }
+
+      // Create order
+      const orderData = {
+        userId,
+        totalAmount: totalAmount.toString(),
+        status: "pending" as const,
+        paymentStatus: "pending" as const,
+        deliveryAddressLine1: deliveryAddress.line1,
+        deliveryAddressLine2: deliveryAddress.line2 || null,
+        deliveryCity: deliveryAddress.city,
+        deliveryState: deliveryAddress.state,
+        deliveryPincode: deliveryAddress.pincode,
+        deliverySlot,
+      };
+
+      const [newOrder] = await db.insert(orders).values(orderData).returning();
+
+      // Add order items
+      for (const item of orderItemsData) {
+        await db.insert(orderItems).values({
+          orderId: newOrder.id,
+          ...item,
+        });
+      }
+
+      // Create Stripe checkout session
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: 'inr',
+            product_data: {
+              name: 'FreshHarvest Order',
+              description: `Order #${newOrder.id}`,
+            },
+            unit_amount: Math.round(totalAmount * 100),
+          },
+          quantity: 1,
+        }],
+        mode: 'payment',
+        success_url: `${req.protocol}://${req.get('host')}/orders/${newOrder.id}?success=true`,
+        cancel_url: `${req.protocol}://${req.get('host')}/checkout?cancelled=true`,
+        metadata: {
+          orderId: newOrder.id,
+          userId,
+        },
+      });
+
+      // Update order with Stripe session ID
+      await db.update(orders)
+        .set({ stripeSessionId: session.id })
+        .where(eq(orders.id, newOrder.id));
+
+      // Clear cart
+      await db.delete(cartItems).where(eq(cartItems.userId, userId));
+
+      res.json({ sessionId: session.id, orderId: newOrder.id });
+    } catch (error) {
+      console.error("Error creating checkout session:", error);
+      res.status(500).json({ error: "Failed to create checkout session" });
+    }
+  });
+
+  // Get user orders
+  app.get("/api/orders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userOrders = await db.select().from(orders)
+        .where(eq(orders.userId, userId))
+        .orderBy(desc(orders.createdAt));
+
+      const ordersWithItems = await Promise.all(
+        userOrders.map(async (order) => {
+          const items = await db.select().from(orderItems)
+            .where(eq(orderItems.orderId, order.id));
+          return { ...order, items };
+        })
+      );
+
+      res.json(ordersWithItems);
+    } catch (error) {
+      console.error("Error fetching orders:", error);
+      res.status(500).json({ error: "Failed to fetch orders" });
+    }
+  });
+
+  // Get single order
+  app.get("/api/orders/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+
+      const [order] = await db.select().from(orders)
+        .where(and(eq(orders.id, id), eq(orders.userId, userId)));
+
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      const items = await db.select().from(orderItems)
+        .where(eq(orderItems.orderId, id));
+
+      res.json({ ...order, items });
+    } catch (error) {
+      console.error("Error fetching order:", error);
+      res.status(500).json({ error: "Failed to fetch order" });
     }
   });
 

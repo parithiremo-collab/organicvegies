@@ -7,7 +7,10 @@ import express, {
   NextFunction,
 } from "express";
 
+import { runMigrations } from 'stripe-replit-sync';
 import { registerRoutes } from "./routes";
+import { getStripeSync } from "./stripeClient";
+import { WebhookHandlers } from "./webhookHandlers";
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -67,7 +70,61 @@ app.use((req, res, next) => {
 export default async function runApp(
   setup: (app: Express, server: Server) => Promise<void>,
 ) {
+  // Initialize Stripe integration
+  async function initStripe() {
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) {
+      throw new Error('DATABASE_URL environment variable is required');
+    }
+
+    try {
+      log('Initializing Stripe schema...');
+      await runMigrations({ databaseUrl });
+      log('Stripe schema ready');
+
+      const stripeSync = await getStripeSync();
+      log('Setting up managed webhook...');
+      const webhookBaseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      await stripeSync.findOrCreateManagedWebhook(
+        `${webhookBaseUrl}/api/stripe/webhook`,
+        { enabled_events: ['*'] }
+      );
+      log('Webhook configured');
+
+      // Sync in background
+      stripeSync.syncBackfill()
+        .then(() => log('Stripe data synced'))
+        .catch((err: any) => log(`Stripe sync error: ${err.message}`));
+    } catch (error) {
+      log(`Stripe initialization error: ${error}`);
+    }
+  }
+
+  await initStripe();
+
   const server = await registerRoutes(app);
+
+  // Register Stripe webhook BEFORE express.json()
+  app.post(
+    '/api/stripe/webhook/:uuid',
+    express.raw({ type: 'application/json' }),
+    async (req, res) => {
+      const signature = req.headers['stripe-signature'];
+      if (!signature) {
+        return res.status(400).json({ error: 'Missing stripe-signature' });
+      }
+
+      try {
+        const sig = Array.isArray(signature) ? signature[0] : signature;
+        const { uuid } = req.params;
+        await WebhookHandlers.processWebhook(req.body as Buffer, sig, uuid);
+        res.status(200).json({ received: true });
+      } catch (error: any) {
+        log(`Webhook error: ${error.message}`);
+        res.status(400).json({ error: 'Webhook processing error' });
+      }
+    }
+  );
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

@@ -7,6 +7,9 @@ import { LanguageProvider } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import Home from "@/pages/Home";
 import Landing from "@/pages/Landing";
+import Checkout from "@/pages/Checkout";
+import Orders from "@/pages/Orders";
+import OrderDetail from "@/pages/OrderDetail";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -30,6 +33,9 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Home} />
+          <Route path="/checkout" component={Checkout} />
+          <Route path="/orders" component={Orders} />
+          <Route path="/orders/:id" component={OrderDetail} />
           <Route component={NotFound} />
         </>
       )}

@@ -134,6 +134,17 @@ export default function Header({
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
+                  <Link href="/orders" data-testid="link-my-orders">
+                    My Orders
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/checkout" data-testid="link-checkout">
+                    Checkout
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
                   <a href="/api/logout" data-testid="button-logout" className="flex items-center gap-2 cursor-pointer">
                     <LogOut className="h-4 w-4" />
                     {t('logout')}
