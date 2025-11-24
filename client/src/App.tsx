@@ -53,7 +53,7 @@ function Router() {
               <Route path="/" component={AdminDashboard} />
               <Route component={RedirectToHome} />
             </>
-          ) : user?.role === "seller" ? (
+          ) : user?.role === "farmer" ? (
             <>
               <Route path="/" component={FarmerDashboard} />
               <Route component={RedirectToHome} />

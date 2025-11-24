@@ -15,7 +15,7 @@ export default function Footer({ onNewsletterSubmit }: FooterProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
   
-  const isSeller = user?.role === "seller";
+  const isSeller = user?.role === "farmer";
   const isAgent = user?.role === "agent";
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isCustomer = user?.role === "customer";

@@ -33,7 +33,7 @@ export default function Header({
   const { t } = useTranslation();
   
   // Determine if user is a seller/farmer or agent/admin
-  const isSeller = user?.role === "seller";
+  const isSeller = user?.role === "farmer";
   const isAgent = user?.role === "agent";
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isCustomer = user?.role === "customer";
@@ -41,7 +41,7 @@ export default function Header({
   // Get role label for display
   const getRoleLabel = () => {
     switch(user?.role) {
-      case "seller": return "Farmer";
+      case "farmer": return "Farmer";
       case "agent": return "Agent";
       case "admin": return "Admin";
       case "superadmin": return "Super Admin";

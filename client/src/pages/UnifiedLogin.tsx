@@ -23,7 +23,7 @@ const ROLES: RoleOption[] = [
     color: "bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800",
   },
   {
-    role: "seller",
+    role: "farmer",
     titleKey: "roleFarmer",
     descKey: "roleFarmerDesc",
     icon: Leaf,
