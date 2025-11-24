@@ -81,8 +81,9 @@ export default function Header({
               </SheetContent>
             </Sheet>
 
-            <Link href="/" className="flex items-center gap-2" data-testid="link-logo">
+            <Link href="/" className="flex items-center gap-2 hover-elevate rounded-md px-2 py-1" data-testid="link-logo">
               <img src="/ulavar-angadi-logo.jpg" alt="Ulavar Angadi Logo" className="h-12 object-contain" />
+              <span className="hidden sm:inline font-semibold text-lg text-primary">Ulavar Angadi</span>
             </Link>
 
             <nav className="hidden lg:flex items-center gap-6">

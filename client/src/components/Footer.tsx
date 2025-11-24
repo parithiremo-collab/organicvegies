@@ -28,11 +28,14 @@ export default function Footer({ onNewsletterSubmit }: FooterProps) {
   };
 
   return (
-    <footer className="border-t bg-muted/30">
+    <footer className="border-t bg-gradient-to-b from-muted/30 to-primary/5 dark:from-muted/40 dark:to-primary/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           <div>
-            <h3 className="font-accent text-xl font-bold text-primary mb-4">Ulavar Angadi</h3>
+            <div className="flex items-center gap-2 mb-4">
+              <img src="/ulavar-angadi-logo.jpg" alt="Ulavar Angadi" className="h-8 object-contain" />
+              <h3 className="font-accent text-xl font-bold text-primary">Ulavar Angadi</h3>
+            </div>
             <p className="text-sm text-muted-foreground mb-4">
               {isCustomer && "Fresh organic produce delivered directly from certified farmers to your doorstep."}
               {isSeller && "Sell your certified organic produce to thousands of customers nationwide."}
@@ -124,7 +127,7 @@ export default function Footer({ onNewsletterSubmit }: FooterProps) {
                   </li>
                   <li>
                     <span className="text-muted-foreground px-2 py-1 inline-block" data-testid="text-admin-email">
-                      admin@freshharvest.com
+                      admin@ulavarangadi.com
                     </span>
                   </li>
                 </>
@@ -137,17 +140,17 @@ export default function Footer({ onNewsletterSubmit }: FooterProps) {
             <ul className="space-y-2 text-sm">
               <li>
                 <span className="text-muted-foreground px-2 py-1 inline-block" data-testid="text-about-us">
-                  About FreshHarvest
+                  About Ulavar Angadi
                 </span>
               </li>
               <li>
                 <span className="text-muted-foreground px-2 py-1 inline-block" data-testid="text-social-responsibility">
-                  Social Responsibility
+                  Farmer Stories
                 </span>
               </li>
               <li>
                 <span className="text-muted-foreground px-2 py-1 inline-block" data-testid="text-blog">
-                  Blog & Resources
+                  Organic Farming Tips
                 </span>
               </li>
             </ul>
