@@ -16,7 +16,7 @@ import FarmerDashboard from "@/pages/FarmerDashboard";
 import AgentDashboard from "@/pages/AgentDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
-import NotFound from "@/pages/not-found";
+import RedirectToHome from "@/pages/redirect-to-home";
 
 interface UserData {
   role: string;
@@ -39,29 +39,29 @@ function Router() {
       {!isAuthenticated ? (
         <>
           <Route path="/" component={UnifiedLogin} />
-          <Route component={NotFound} />
+          <Route component={RedirectToHome} />
         </>
       ) : (
         <>
           {user?.role === "superadmin" ? (
             <>
               <Route path="/" component={SuperAdminDashboard} />
-              <Route component={NotFound} />
+              <Route component={RedirectToHome} />
             </>
           ) : user?.role === "admin" ? (
             <>
               <Route path="/" component={AdminDashboard} />
-              <Route component={NotFound} />
+              <Route component={RedirectToHome} />
             </>
           ) : user?.role === "seller" ? (
             <>
               <Route path="/" component={FarmerDashboard} />
-              <Route component={NotFound} />
+              <Route component={RedirectToHome} />
             </>
           ) : user?.role === "agent" ? (
             <>
               <Route path="/" component={AgentDashboard} />
-              <Route component={NotFound} />
+              <Route component={RedirectToHome} />
             </>
           ) : (
             <>
@@ -69,7 +69,7 @@ function Router() {
               <Route path="/checkout" component={Checkout} />
               <Route path="/orders" component={Orders} />
               <Route path="/orders/:id" component={OrderDetail} />
-              <Route component={NotFound} />
+              <Route component={RedirectToHome} />
             </>
           )}
         </>
