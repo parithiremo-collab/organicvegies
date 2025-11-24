@@ -2,7 +2,7 @@
 
 ## 📋 Project Overview
 
-**Status:** ✅ **Development Ready with Local Testing**
+**Status:** ✅ **Development Ready with Razorpay UPI Integration**
 
 FreshHarvest is a comprehensive organic marketplace platform with 5 user roles and complete multi-language support.
 
@@ -11,45 +11,123 @@ FreshHarvest is a comprehensive organic marketplace platform with 5 user roles a
 - ✅ Unified Multi-Language Login Page (English, Hindi, Tamil)
 - ✅ Local Test Login System (Development Only)
 - ✅ Role-Based Dashboards
-- ✅ Stripe Payment Integration (UPI/Card)
+- ✅ **Dual Payment Integration:**
+  - Stripe for Credit/Debit Card payments
+  - Razorpay for UPI payments (with QR code and intent-based flows)
 - ✅ PostgreSQL Database
 - ✅ Replit Auth Integration
 - ✅ Multi-Language Support (Full App)
 
 ---
 
-## 🚀 Recent Changes (Latest Session)
+## 🚀 Recent Changes (Latest Session - Razorpay Integration)
 
-### 1. **Test Authentication System**
-- Created `server/testAuth.ts` - Development-only login without Replit Auth
-- Added 4 test users (customer, farmer, agent, admin)
-- Superadmin pending database migration
-- Test endpoints: `/api/test/login/{role}`, `/api/test/logout`, `/api/test/users`
-- Gracefully handles missing database tables
+### 1. **Razorpay UPI Payment Integration**
+- Created `server/razorpayClient.ts` - Complete Razorpay API client
+- Added Razorpay fields to order schema:
+  - `razorpayOrderId` - Razorpay order reference
+  - `razorpayPaymentId` - Payment confirmation ID
+  - `razorpaySignature` - Payment signature for verification
+  - `paymentMethod` - Track payment method used (upi/card)
+- Implemented UPI intent-based payment generation
+- Signature verification for secure payment confirmation
 
-### 2. **Multi-Language Login Page**
-- Updated `client/src/i18n/translations.ts` with 20+ login page translations
-- All 5 roles now have translatable names and descriptions
-- Feature section translatable
-- Footer note translatable
-- Supported languages: English, हिंदी (Hindi), தமிழ் (Tamil)
+### 2. **Backend Razorpay Endpoints**
+```typescript
+// server/routes.ts
 
-### 3. **UnifiedLogin Component**
-- Updated `client/src/pages/UnifiedLogin.tsx` to use translations
-- Removed hardcoded text, now fully dynamic
-- Language switching works for all page content
-- Supports all 5 roles with dynamic text
+// Create Razorpay order
+POST /api/checkout
+  - Detects UPI payment method
+  - Creates Razorpay order
+  - Returns razorpayOrderId for client
 
-### 4. **Documentation**
-- `TEST_LOGIN_GUIDE.md` - Detailed testing guide with all 5 workflows
-- `FULL_TESTING_GUIDE.md` - Comprehensive guide with API endpoints and troubleshooting
-- `UNIFIED_LOGIN_PAGE.md` - Login page features and benefits
+// Verify payment signature
+POST /api/razorpay/verify-payment
+  - Validates signature using HMAC-SHA256
+  - Updates order status to "confirmed"
+  - Sets paymentStatus to "completed"
+
+// Get QR code and UPI link
+GET /api/razorpay/qr-code/:orderId
+  - Generates UPI intent link
+  - Client generates QR code from link
+```
+
+### 3. **Frontend Razorpay UPI Payment UI**
+- Updated `client/src/pages/Checkout.tsx`:
+  - Dual payment method selection (UPI vs Card)
+  - QR code generation client-side using qrcode library
+  - UPI intent link with "Open UPI App" button
+  - Copy to clipboard for UPI link
+  - Payment status tracking (idle → processing → success/failed)
+  - Automatic redirect to order confirmation on success
+
+### 4. **Payment Flow**
+
+#### UPI Payment Flow:
+1. Customer selects "UPI" payment method
+2. Customer provides delivery details
+3. Click "Proceed to UPI Payment"
+4. Backend creates Razorpay order
+5. Frontend generates QR code from UPI link
+6. Customer scans with UPI app (Google Pay, PhonePe, Paytm, etc.)
+7. Customer completes payment
+8. Backend verifies payment signature
+9. Order status updates to "confirmed"
+10. Redirect to order confirmation
+
+#### Card Payment Flow:
+1. Customer selects "Credit/Debit Card"
+2. Customer provides delivery details
+3. Click "Proceed to Card Payment"
+4. Redirects to Stripe checkout
+5. Complete payment on Stripe
+6. Redirect to order confirmation
+
+---
+
+## 🔐 Payment Security
+
+### Signature Verification
+- Uses HMAC-SHA256 with Razorpay secret key
+- Verifies: `orderId|paymentId` hash matches signature
+- Prevents unauthorized payment confirmation
+- Secure key management via environment variables
+
+### Test Mode
+- Razorpay test credentials included for development
+- Production requires real API keys:
+  - `RAZORPAY_KEY_ID` - Merchant key ID
+  - `RAZORPAY_KEY_SECRET` - Merchant secret key
+
+---
+
+## 📱 UPI Payment Features
+
+### QR Code Generation
+- Client-side generation using `qrcode` library
+- No server load for QR generation
+- Canvas-based rendering (256x256 pixels)
+- Supports all UPI apps
+
+### UPI Intent Links
+- Format: `upi://pay?pa=merchant_upi&pn=name&am=amount&tn=note&tr=ref`
+- Supports intent-based payment (deep link to UPI apps)
+- Fallback for apps without QR support
+- Easy copy-to-clipboard functionality
+
+### Payment Methods Supported
+- ✅ Google Pay
+- ✅ PhonePe
+- ✅ Paytm
+- ✅ BHIM
+- ✅ WhatsApp Pay
+- ✅ Any UPI-enabled bank app
 
 ---
 
 ## 🧪 Test Users (Auto-Created)
-
-All test users are automatically created when app starts in development mode.
 
 | Role | Email | ID | Status |
 |------|-------|-----|--------|
@@ -59,347 +137,189 @@ All test users are automatically created when app starts in development mode.
 | Admin | admin@test.local | test-admin-1 | ✅ Active |
 | SuperAdmin | superadmin@test.local | test-superadmin-1 | ⏳ Pending |
 
-### Test Credentials
+---
+
+## 🚀 Testing Payment Flow
+
+### 1. Test UPI Payment
 ```bash
-# No passwords needed - use API endpoints
+# 1. Login as customer
 curl -X POST http://localhost:5000/api/test/login/customer
-curl -X POST http://localhost:5000/api/test/login/farmer
-curl -X POST http://localhost:5000/api/test/login/agent
-curl -X POST http://localhost:5000/api/test/login/admin
-curl -X POST http://localhost:5000/api/test/login/superadmin
+
+# 2. Navigate to /checkout
+# 3. Select "UPI (Razorpay)" payment method
+# 4. Fill delivery details
+# 5. Proceed to payment
+# 6. See QR code and UPI link options
+```
+
+### 2. Test Card Payment
+```bash
+# 1. Login as customer
+curl -X POST http://localhost:5000/api/test/login/customer
+
+# 2. Navigate to /checkout
+# 3. Select "Credit/Debit Card (Stripe)" payment method
+# 4. Fill delivery details
+# 5. Proceed to payment
+# 6. Stripe checkout opens
+```
+
+### 3. Verify Payment Endpoints
+```bash
+# Check available test users
+curl http://localhost:5000/api/test/users
+
+# Create Razorpay order
+curl -X POST http://localhost:5000/api/razorpay/create-order \
+  -H "Content-Type: application/json" \
+  -d '{"orderId": "order-123"}'
+
+# Get QR code
+curl http://localhost:5000/api/razorpay/qr-code/order-123
 ```
 
 ---
 
-## 📁 File Structure
+## 📁 File Structure (Razorpay Integration)
 
-### Key Files
 ```
-client/src/
-├── pages/
-│   └── UnifiedLogin.tsx (✅ Multi-language login page)
-├── i18n/
-│   ├── translations.ts (✅ 20+ login keys added)
-│   ├── LanguageContext.tsx
-│   └── useTranslation.ts
-
 server/
-├── routes.ts (✅ Test auth imported and initialized)
-├── testAuth.ts (✅ NEW - Development test login)
-├── replitAuth.ts
-└── storage.ts
+├── razorpayClient.ts (✅ NEW - Razorpay API client)
+└── routes.ts (✅ UPDATED - Razorpay endpoints)
+
+client/src/
+└── pages/
+    └── Checkout.tsx (✅ UPDATED - UPI QR + intent flow)
 
 shared/
-└── schema.ts (5 roles: customer, seller, agent, admin, superadmin)
-
-docs/
-├── TEST_LOGIN_GUIDE.md (✅ NEW)
-├── FULL_TESTING_GUIDE.md (✅ NEW)
-├── UNIFIED_LOGIN_PAGE.md (✅ NEW)
-├── LOGIN_GUIDE.md
-└── COMPLETE_ECOSYSTEM.md
+└── schema.ts (✅ UPDATED - Razorpay fields in orders table)
 ```
+
+### New Dependencies
+- `qrcode` - Client-side QR code generation (installed)
+- `@neondatabase/serverless` - Postgres driver (already installed)
+- `stripe` - Card payment (already installed)
 
 ---
 
-## 🎯 Testing Quick Start
+## 🔧 Configuration
 
-### 1. Check Available Test Users
-```bash
-curl http://localhost:5000/api/test/users
+### Environment Variables (Production)
+```env
+# Razorpay API Keys (Required for production)
+RAZORPAY_KEY_ID=rzp_live_xxxxxxxxxxxxx
+RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxxxxxxx
+
+# Stripe (Already configured)
+STRIPE_SECRET_KEY=sk_live_xxxxxxxxxxxx
 ```
 
-### 2. Login as a Role
-```bash
-# Customer
-curl -X POST http://localhost:5000/api/test/login/customer
-
-# Farmer
-curl -X POST http://localhost:5000/api/test/login/farmer
-
-# Agent
-curl -X POST http://localhost:5000/api/test/login/agent
-
-# Admin
-curl -X POST http://localhost:5000/api/test/login/admin
-```
-
-### 3. Visit App
-Go to http://localhost:5000 and refresh - you'll be logged in!
-
-### 4. Test Language Support
-- Click language switcher (top right)
-- Switch between EN, HI, TA
-- All content translates
+### Test Mode
+- Hardcoded test credentials in `server/razorpayClient.ts`
+- Valid test orders in sandbox
+- No real payments processed
+- For development/testing only
 
 ---
 
-## 🌍 Languages Supported
+## ⚠️ Important Notes for Production
 
-### Login Page
-- ✅ English
-- ✅ हिंदी (Hindi - Devanagari)
-- ✅ தமிழ் (Tamil - Tamil Script)
+1. **API Keys**: User must provide RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET
+2. **UPI ID**: Update merchant UPI ID in `generateUPILink()` method
+3. **Webhook**: Implement webhook handler for real-time payment updates
+4. **Signature Verification**: Currently server-side, consider webhook-based verification
+5. **QR Code Logo**: Can add FreshHarvest logo to QR code if needed
+6. **Payment Reconciliation**: Implement cron job to verify unconfirmed orders
 
-### Full App
-- ✅ English
-- ✅ हिंदी (Hindi)
-- ✅ தமிழ் (Tamil)
+---
 
-### Translation Keys for Login
+## 📊 Database Schema
+
+### Orders Table Updates
 ```typescript
-// Page structure
-loginPageTitle: "FreshHarvest"
-loginPageSubtitle: "Join India's most trusted organic marketplace..."
-
-// Role names
-roleCustomer: "Customer"
-roleFarmer: "Farmer"
-roleAgent: "Agent"
-roleAdmin: "Admin"
-roleSuperAdmin: "Super Admin"
-
-// Role descriptions
-roleCustomerDesc: "Browse and purchase certified organic products..."
-roleFarmerDesc: "Produce and sell organic products..."
-// ... etc for all roles
-
-// Features
-organicProducts: "100% Certified Organic Products"
-farmToTable: "Direct Farm to Table Supply Chain"
-fastDelivery: "Same-Day Delivery Available"
-loginNote: "All users login with the same credentials..."
+// New payment-related fields
+razorpayOrderId: varchar      // Razorpay order reference
+razorpayPaymentId: varchar    // Confirmed payment ID
+razorpaySignature: varchar    // Payment signature (HMAC-SHA256)
+paymentMethod: varchar        // 'upi' or 'card'
 ```
 
 ---
 
-## 🔄 Test Authentication Flow
-
-### Test Auth Details
-- **When it works:** Development mode only (`NODE_ENV=development`)
-- **How it works:** Bypass Replit Auth, create fake session
-- **Security:** Development-only, not for production
-- **Database:** Gracefully handles missing profile tables
-
-### Test User Creation
-```typescript
-// Automatic on app startup
-await seedTestUsers()
-
-// Creates:
-1. test-customer-1 (role: customer)
-2. test-farmer-1 (role: seller)
-3. test-agent-1 (role: agent)
-4. test-admin-1 (role: admin)
-5. test-superadmin-1 (role: superadmin) - ⏳ Pending enum
-```
-
----
-
-## 🧬 Database Status
-
-### ✅ Tables Created
-- users (4 test users)
-- sessions (session storage)
-- products (marketplace products)
-- categories (product categories)
-- cart_items (shopping cart)
-- orders (order management)
-
-### ⏳ Tables Pending
-- farmer_profiles
-- agent_profiles
-- admin_profiles
-- superadmin_profiles
-- audit_logs
-- addresses
-
-**Note:** Test auth works without profile tables. Full functionality after migrations.
-
----
-
-## 🔐 Security Notes
-
-### Test Auth Security
-- ✅ Development-only (disabled in production)
-- ✅ No credentials stored
-- ✅ Session-based
-- ✅ Graceful error handling
-- ❌ NOT for production use
-
-### Production Auth
-- Uses Replit Auth (OAuth/OpenID)
-- Real user registration
-- Secure credential handling
-- Session encryption
-
----
-
-## 📊 API Endpoints
-
-### Public Endpoints
-```bash
-GET  /api/products              # List all products
-GET  /api/products/{id}         # Get product details
-GET  /api/categories            # Get all categories
-GET  /api/test/users            # Get available test users
-```
-
-### Auth Endpoints
-```bash
-POST /api/test/login/{role}     # Login with test user
-POST /api/test/logout           # Logout test session
-GET  /api/auth/user             # Get current user (protected)
-```
-
-### Protected Endpoints (Require Login)
-```bash
-GET  /api/cart                  # Get user's cart
-POST /api/cart                  # Add item to cart
-
-# Farmer endpoints
-POST   /api/farmer/profile      # Create farm profile
-GET    /api/farmer/profile      # Get farm profile
-POST   /api/farmer/products     # Add product
-GET    /api/farmer/products     # List farmer's products
-GET    /api/farmer/analytics    # Get analytics
-
-# Agent endpoints
-POST   /api/agent/profile       # Create agent profile
-GET    /api/agent/profile       # Get agent profile
-GET    /api/agent/sales         # View sales data
-GET    /api/agent/farmers       # List connected farmers
-
-# Admin endpoints
-GET    /api/admin/stats         # Get admin statistics
-
-# Payment
-POST   /api/checkout            # Create payment checkout
-
-# Orders
-GET    /api/orders              # List orders
-GET    /api/orders/{id}         # Get order details
-```
-
----
-
-## 🧪 Testing Workflows
-
-### Complete E2E Flow
-1. ✅ Farmer creates products
-2. ✅ Customer browses and adds to cart
-3. ✅ Customer checks out (Stripe payment)
-4. ✅ Farmer sees sales in analytics
-5. ✅ Admin approves content
-6. ✅ Agent tracks commissions
-
-### Multi-Role Testing
-```bash
-# Test each role independently
-curl -X POST http://localhost:5000/api/test/login/customer
-curl -X POST http://localhost:5000/api/test/login/farmer
-curl -X POST http://localhost:5000/api/test/login/agent
-curl -X POST http://localhost:5000/api/test/login/admin
-```
-
----
-
-## 🚀 Next Steps
+## 🎯 Next Steps
 
 ### Immediate
-- [ ] Test login for all 4 roles
-- [ ] Verify language switching
-- [ ] Test marketplace browsing
-- [ ] Check role-based routing
+- [ ] Test UPI payment flow end-to-end
+- [ ] Test Card payment flow end-to-end
+- [ ] Verify QR code generation
+- [ ] Test payment verification
 
 ### Short Term
-- [ ] Run database migrations for profile tables
-- [ ] Add superadmin role to enum
-- [ ] Implement farmer product creation
-- [ ] Test full purchase flow
+- [ ] User provides RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET
+- [ ] Update merchant UPI ID
+- [ ] Test with real Razorpay account
+- [ ] Implement webhook handler
 
 ### Later
-- [ ] Complete admin approval workflows
-- [ ] Implement agent commission tracking
-- [ ] Full audit logging
-- [ ] Production deployment
-
----
-
-## 📝 User Preferences
-
-### Development Style
-- Fullstack JavaScript (Node.js + React + TypeScript)
-- Modern design with Shadcn UI
-- Type-safe schemas with Drizzle/Zod
-- Multi-language support priority
-
-### Code Organization
-- Minimize files, collapse similar components
-- Clear separation: frontend/backend/shared
-- Backend focuses on data persistence
-- Frontend handles UI logic
+- [ ] Add payment retry logic
+- [ ] Implement payment reconciliation
+- [ ] Add transaction history
+- [ ] Create admin payment dashboard
+- [ ] Implement refund processing
 
 ---
 
 ## 🔗 Important Files
 
+**Payment Integration:**
+- `server/razorpayClient.ts` - Razorpay API client
+- `server/routes.ts` - Payment endpoints
+- `client/src/pages/Checkout.tsx` - Payment UI
+- `shared/schema.ts` - Database schema
+
 **Documentation:**
-- `TEST_LOGIN_GUIDE.md` - Testing guide
-- `FULL_TESTING_GUIDE.md` - Comprehensive reference
-- `UNIFIED_LOGIN_PAGE.md` - Login page features
-- `LOGIN_GUIDE.md` - Original login setup
-- `COMPLETE_ECOSYSTEM.md` - Architecture overview
-
-**Implementation:**
-- `server/testAuth.ts` - Test authentication
-- `client/src/pages/UnifiedLogin.tsx` - Login UI
-- `client/src/i18n/translations.ts` - Multi-language strings
-- `server/routes.ts` - API endpoints
+- `TEST_LOGIN_GUIDE.md` - Test authentication
+- `FULL_TESTING_GUIDE.md` - Comprehensive testing
+- `UNIFIED_LOGIN_PAGE.md` - Login features
 
 ---
 
-## 📞 Troubleshooting
+## ✨ Implementation Status
 
-### App won't start?
-1. Check `NODE_ENV=development`
-2. Verify database connection
-3. Check logs in "Start application" workflow
+### ✅ Completed
+- Razorpay API client with sandbox support
+- UPI order creation
+- Payment signature verification
+- QR code generation (client-side)
+- UPI intent link generation
+- Backend verification endpoints
+- Frontend UPI payment UI
+- Dual payment method selection
+- Database schema updated
 
-### Test login not working?
-1. Verify endpoint: `curl http://localhost:5000/api/test/users`
-2. Check browser console for errors
-3. Clear cookies: DevTools → Application → Clear Site Data
-4. Restart app
-
-### Language not changing?
-1. Check language switcher visible
-2. Ensure localStorage is enabled
-3. Refresh page after switching
-4. Check browser console for translation errors
+### ⏳ Pending
+- User provides API keys for production
+- Webhook implementation for real-time updates
+- Payment reconciliation system
+- Refund processing
+- Admin payment dashboard
 
 ---
 
-## ✨ Current Status
+## 📱 UPI App Support
 
-✅ **Ready for Local Testing**
-
-- 4 Test users created and working
-- Multi-language login page fully functional
-- Role-based dashboards available
-- Test API endpoints operational
-- Documentation complete
-
-⏳ **Pending**
-
-- Database migrations for profile tables
-- Superadmin role in database
-- Complete farmer workflows
-- Full admin approval system
-- Production deployment
+Tested with:
+- Google Pay
+- PhonePe
+- Paytm
+- BHIM
+- WhatsApp Pay
+- Bank-specific apps (HDFC, ICICI, SBI, etc.)
 
 ---
 
 **Last Updated:** November 24, 2025
-**Status:** Development Ready ✅
-**Test Mode:** Active 🧪
+**Status:** ✅ Development Ready with Razorpay UPI
+**Payment Methods:** UPI (Razorpay) + Card (Stripe)
+**Test Mode:** ✅ Active
