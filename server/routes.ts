@@ -4,6 +4,7 @@ import { db } from "./db";
 import { categories, products, cartItems, orders, orderItems, users, farmerProfiles, agentProfiles, agentSales, agentFarmerRelations, adminProfiles, superAdminProfiles, auditLogs } from "@shared/schema";
 import { eq, and, or, ilike, gte, lte, desc } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupTestAuth } from "./testAuth";
 import { storage } from "./storage";
 import { insertCartItemSchema, insertOrderSchema, insertOrderItemSchema, insertFarmerProfileSchema, insertAgentProfileSchema, insertAdminProfileSchema, insertSuperAdminProfileSchema } from "@shared/schema";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
@@ -11,6 +12,9 @@ import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClie
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication (MANDATORY for Replit Auth)
   await setupAuth(app);
+  
+  // Setup test authentication for local development (NODE_ENV=development)
+  setupTestAuth(app);
 
   // Auth endpoint to fetch current user
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
