@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Star, ShoppingCart, MapPin } from "lucide-react";
 import { useTranslation } from "@/i18n/useTranslation";
 import { productTranslations } from "@/i18n/translations";
+import { useLocation } from "wouter";
+import WishlistButton from "./WishlistButton";
 
 interface ProductCardProps {
   id: string;
@@ -37,6 +39,7 @@ export default function ProductCard({
   onClick
 }: ProductCardProps) {
   const { language, t } = useTranslation();
+  const [_, navigate] = useLocation();
   
   // Get translated product name, fallback to English name if not found
   const translatedProduct = productTranslations[language]?.[id];
@@ -69,12 +72,15 @@ export default function ProductCard({
       </div>
       
       <div className="p-5 space-y-3">
-        <div>
-          <h3 className="font-semibold text-sm line-clamp-2 mb-1.5">{displayName}</h3>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <MapPin className="h-3 w-3" />
-            <span>{origin}</span>
+        <div className="flex justify-between items-start gap-2">
+          <div className="flex-1">
+            <h3 className="font-semibold text-sm line-clamp-2 mb-1.5 cursor-pointer hover:text-primary" onClick={() => navigate(`/products/${id}`)}>{displayName}</h3>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <MapPin className="h-3 w-3" />
+              <span>{origin}</span>
+            </div>
           </div>
+          <WishlistButton productId={id} />
         </div>
 
         <div className="flex items-center gap-1 text-xs">

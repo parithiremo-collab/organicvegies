@@ -8,6 +8,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useQuery } from "@tanstack/react-query";
 import Home from "@/pages/Home";
+import Shop from "@/pages/Shop";
+import ProductDetail from "@/pages/ProductDetail";
 import UnifiedLogin from "@/pages/UnifiedLogin";
 import Checkout from "@/pages/Checkout";
 import Orders from "@/pages/Orders";
@@ -66,6 +68,8 @@ function Router() {
           ) : (
             <>
               <Route path="/" component={Home} />
+              <Route path="/shop" component={Shop} />
+              <Route path="/products/:id" component={ProductDetail} />
               <Route path="/checkout" component={Checkout} />
               <Route path="/orders" component={Orders} />
               <Route path="/orders/:id" component={OrderDetail} />

@@ -198,6 +198,26 @@ export const orderItems = pgTable("order_items", {
   weight: text("weight").notNull(),
 });
 
+// Wishlist items
+export const wishlists = pgTable("wishlists", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  productId: varchar("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Product reviews
+export const reviews = pgTable("reviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productId: varchar("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  rating: integer("rating").notNull(),
+  title: text("title").notNull(),
+  comment: text("comment").notNull(),
+  verified: boolean("verified").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Schema validators
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
@@ -259,6 +279,16 @@ export const insertSuperAdminProfileSchema = createInsertSchema(superAdminProfil
   createdAt: true,
 });
 
+export const insertWishlistSchema = createInsertSchema(wishlists).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertReviewSchema = createInsertSchema(reviews).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -296,3 +326,9 @@ export type SuperAdminProfile = typeof superAdminProfiles.$inferSelect;
 export type AgentSale = typeof agentSales.$inferSelect;
 export type AgentFarmerRelation = typeof agentFarmerRelations.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
+
+export type InsertWishlist = z.infer<typeof insertWishlistSchema>;
+export type Wishlist = typeof wishlists.$inferSelect;
+
+export type InsertReview = z.infer<typeof insertReviewSchema>;
+export type Review = typeof reviews.$inferSelect;

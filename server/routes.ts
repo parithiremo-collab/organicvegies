@@ -1,12 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./db";
-import { categories, products, cartItems, orders, orderItems, users, farmerProfiles, agentProfiles, agentSales, agentFarmerRelations, adminProfiles, superAdminProfiles, auditLogs } from "@shared/schema";
+import { categories, products, cartItems, orders, orderItems, users, farmerProfiles, agentProfiles, agentSales, agentFarmerRelations, adminProfiles, superAdminProfiles, auditLogs, wishlists, reviews } from "@shared/schema";
 import { eq, and, or, ilike, gte, lte, desc } from "drizzle-orm";
 import { setupAuth, isAuthenticated, isReplitAuthEnabled } from "./replitAuth";
 import { setupTestAuth, setupSessionMiddleware } from "./testAuth";
 import { storage } from "./storage";
-import { insertCartItemSchema, insertOrderSchema, insertOrderItemSchema, insertFarmerProfileSchema, insertAgentProfileSchema, insertAdminProfileSchema, insertSuperAdminProfileSchema } from "@shared/schema";
+import { insertCartItemSchema, insertOrderSchema, insertOrderItemSchema, insertFarmerProfileSchema, insertAgentProfileSchema, insertAdminProfileSchema, insertSuperAdminProfileSchema, insertWishlistSchema, insertReviewSchema } from "@shared/schema";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { getRazorpayClient } from "./razorpayClient";
 
@@ -1241,6 +1241,200 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating config:", error);
       res.status(500).json({ error: "Failed to update config" });
+    }
+  });
+
+  // ========== WISHLIST ROUTES ==========
+  
+  // Get user's wishlist
+  app.get("/api/wishlist", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const wishlistItems = await db.select({
+        id: wishlists.id,
+        productId: wishlists.productId,
+        product: products,
+      })
+        .from(wishlists)
+        .innerJoin(products, eq(wishlists.productId, products.id))
+        .where(eq(wishlists.userId, userId));
+      
+      res.json(wishlistItems);
+    } catch (error) {
+      console.error("Error fetching wishlist:", error);
+      res.status(500).json({ error: "Failed to fetch wishlist" });
+    }
+  });
+
+  // Check if product is in wishlist
+  app.get("/api/wishlist/:productId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { productId } = req.params;
+      
+      const item = await db.select()
+        .from(wishlists)
+        .where(and(
+          eq(wishlists.userId, userId),
+          eq(wishlists.productId, productId)
+        ));
+      
+      res.json({ inWishlist: item.length > 0 });
+    } catch (error) {
+      console.error("Error checking wishlist:", error);
+      res.status(500).json({ error: "Failed to check wishlist" });
+    }
+  });
+
+  // Add to wishlist
+  app.post("/api/wishlist", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { productId } = req.body;
+      
+      if (!productId) {
+        return res.status(400).json({ error: "productId is required" });
+      }
+      
+      // Check if already in wishlist
+      const existing = await db.select()
+        .from(wishlists)
+        .where(and(
+          eq(wishlists.userId, userId),
+          eq(wishlists.productId, productId)
+        ));
+      
+      if (existing.length > 0) {
+        return res.status(400).json({ error: "Product already in wishlist" });
+      }
+      
+      const [item] = await db.insert(wishlists)
+        .values({ userId, productId })
+        .returning();
+      
+      res.json(item);
+    } catch (error) {
+      console.error("Error adding to wishlist:", error);
+      res.status(500).json({ error: "Failed to add to wishlist" });
+    }
+  });
+
+  // Remove from wishlist
+  app.delete("/api/wishlist/:productId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { productId } = req.params;
+      
+      await db.delete(wishlists)
+        .where(and(
+          eq(wishlists.userId, userId),
+          eq(wishlists.productId, productId)
+        ));
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing from wishlist:", error);
+      res.status(500).json({ error: "Failed to remove from wishlist" });
+    }
+  });
+
+  // ========== REVIEW ROUTES ==========
+
+  // Get reviews for a product
+  app.get("/api/reviews/:productId", async (req, res) => {
+    try {
+      const { productId } = req.params;
+      
+      const productReviews = await db.select({
+        id: reviews.id,
+        rating: reviews.rating,
+        title: reviews.title,
+        comment: reviews.comment,
+        verified: reviews.verified,
+        createdAt: reviews.createdAt,
+        user: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+        },
+      })
+        .from(reviews)
+        .innerJoin(users, eq(reviews.userId, users.id))
+        .where(eq(reviews.productId, productId))
+        .orderBy(desc(reviews.createdAt));
+      
+      res.json(productReviews);
+    } catch (error) {
+      console.error("Error fetching reviews:", error);
+      res.status(500).json({ error: "Failed to fetch reviews" });
+    }
+  });
+
+  // Add review
+  app.post("/api/reviews", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { productId, rating, title, comment } = req.body;
+      
+      if (!productId || !rating || !title || !comment) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      if (rating < 1 || rating > 5) {
+        return res.status(400).json({ error: "Rating must be between 1 and 5" });
+      }
+      
+      // Check if user already reviewed this product
+      const existingReview = await db.select()
+        .from(reviews)
+        .where(and(
+          eq(reviews.userId, userId),
+          eq(reviews.productId, productId)
+        ));
+      
+      if (existingReview.length > 0) {
+        return res.status(400).json({ error: "You have already reviewed this product" });
+      }
+      
+      // Check if user purchased this product (set verified if yes)
+      const purchased = await db.select()
+        .from(orderItems)
+        .innerJoin(orders, eq(orderItems.orderId, orders.id))
+        .where(and(
+          eq(orderItems.productId, productId),
+          eq(orders.userId, userId)
+        ));
+      
+      const [review] = await db.insert(reviews)
+        .values({
+          productId,
+          userId,
+          rating: Number(rating),
+          title,
+          comment,
+          verified: purchased.length > 0,
+        })
+        .returning();
+      
+      // Update product's average rating
+      const allReviews = await db.select()
+        .from(reviews)
+        .where(eq(reviews.productId, productId));
+      
+      const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
+      
+      await db.update(products)
+        .set({
+          rating: String(avgRating),
+          reviewCount: allReviews.length,
+        })
+        .where(eq(products.id, productId));
+      
+      res.json(review);
+    } catch (error) {
+      console.error("Error adding review:", error);
+      res.status(500).json({ error: "Failed to add review" });
     }
   });
 
