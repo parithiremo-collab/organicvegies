@@ -252,8 +252,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const { deliveryAddress, deliverySlot, deliveryFee = 0, paymentMethod = 'card' } = req.body;
 
-      if (!deliveryAddress || !deliverySlot) {
+      // Validate required fields
+      if (!deliveryAddress) {
+        return res.status(400).json({ error: "Delivery address is required" });
+      }
+      if (!deliverySlot) {
+        return res.status(400).json({ error: "Delivery slot is required" });
+      }
+
+      // Validate address fields
+      if (!deliveryAddress.line1?.trim() || !deliveryAddress.city?.trim() || !deliveryAddress.state?.trim() || !deliveryAddress.pincode?.trim()) {
         return res.status(400).json({ error: "Missing delivery details" });
+      }
+
+      // Validate pincode format
+      if (!/^\d{6}$/.test(deliveryAddress.pincode)) {
+        return res.status(400).json({ error: "Pincode must be 6 digits" });
+      }
+
+      // Validate payment method
+      if (!['upi', 'card'].includes(paymentMethod)) {
+        return res.status(400).json({ error: "Invalid payment method" });
       }
 
       // Get cart items
@@ -400,8 +419,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/razorpay/create-order", isAuthenticated, async (req: any, res) => {
     try {
       const { orderId } = req.body;
+      
       if (!orderId) {
-        return res.status(400).json({ error: "Order ID required" });
+        return res.status(400).json({ error: "Order ID is required" });
+      }
+
+      if (typeof orderId !== 'string') {
+        return res.status(400).json({ error: "Invalid Order ID format" });
       }
 
       const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
@@ -409,26 +433,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Order not found" });
       }
 
-      const razorpay = getRazorpayClient();
-      const razorpayOrder = await razorpay.createOrder(
-        parseFloat(order.totalAmount),
-        orderId,
-        `FreshHarvest Order ${orderId}`
-      );
+      const amount = parseFloat(order.totalAmount);
+      if (isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ error: "Invalid order amount" });
+      }
 
-      // Update order with Razorpay order ID
-      await db.update(orders)
-        .set({ razorpayOrderId: razorpayOrder.id })
-        .where(eq(orders.id, orderId));
+      try {
+        const razorpay = getRazorpayClient();
+        const razorpayOrder = await razorpay.createOrder(
+          amount,
+          orderId,
+          `FreshHarvest Order ${orderId}`
+        );
 
-      res.json({
-        razorpayOrderId: razorpayOrder.id,
-        amount: razorpayOrder.amount,
-        currency: razorpayOrder.currency,
-      });
+        // Update order with Razorpay order ID
+        await db.update(orders)
+          .set({ razorpayOrderId: razorpayOrder.id })
+          .where(eq(orders.id, orderId));
+
+        res.json({
+          razorpayOrderId: razorpayOrder.id,
+          amount: razorpayOrder.amount,
+          currency: razorpayOrder.currency,
+        });
+      } catch (razorpayError: any) {
+        console.error("Razorpay API error:", razorpayError);
+        // Return user-friendly error message
+        const errorMessage = razorpayError.message?.includes('Authentication') 
+          ? "Payment gateway authentication failed. Please contact support."
+          : razorpayError.message || "Failed to create payment order";
+        res.status(500).json({ error: errorMessage });
+      }
     } catch (error: any) {
-      console.error("Error creating Razorpay order:", error);
-      res.status(500).json({ error: error.message || "Failed to create Razorpay order" });
+      console.error("Error in create order endpoint:", error);
+      res.status(500).json({ error: "An unexpected error occurred. Please try again." });
     }
   });
 
@@ -437,34 +475,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 
+      // Validate all required fields
       if (!orderId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
-        return res.status(400).json({ error: "Missing required payment fields" });
+        return res.status(400).json({ error: "Missing required payment verification fields" });
       }
 
-      const razorpay = getRazorpayClient();
-      const isValid = await razorpay.verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
-
-      if (!isValid) {
-        return res.status(400).json({ error: "Payment verification failed" });
+      // Type validation
+      if (typeof orderId !== 'string' || typeof razorpayPaymentId !== 'string' || typeof razorpaySignature !== 'string') {
+        return res.status(400).json({ error: "Invalid payment data format" });
       }
 
-      // Update order with payment details
-      await db.update(orders)
-        .set({
-          razorpayPaymentId,
-          paymentStatus: "completed" as const,
-          status: "confirmed" as const,
-        })
-        .where(eq(orders.id, orderId));
+      try {
+        const razorpay = getRazorpayClient();
+        const isValid = await razorpay.verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
 
-      res.json({
-        success: true,
-        orderId,
-        paymentId: razorpayPaymentId,
-      });
+        if (!isValid) {
+          console.warn(`Invalid signature for order ${orderId}`);
+          return res.status(400).json({ error: "Payment verification failed: Invalid signature" });
+        }
+
+        // Verify order exists and belongs to user
+        const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+        if (!order) {
+          return res.status(404).json({ error: "Order not found" });
+        }
+
+        if (order.userId !== req.user.claims.sub) {
+          return res.status(403).json({ error: "Unauthorized: Order does not belong to you" });
+        }
+
+        // Update order with payment details
+        await db.update(orders)
+          .set({
+            razorpayPaymentId,
+            razorpaySignature,
+            paymentStatus: "completed" as const,
+            status: "confirmed" as const,
+          })
+          .where(eq(orders.id, orderId));
+
+        res.json({
+          success: true,
+          orderId,
+          paymentId: razorpayPaymentId,
+          message: "Payment verified successfully",
+        });
+      } catch (verifyError: any) {
+        console.error("Payment verification error:", verifyError);
+        res.status(500).json({ error: "Payment verification failed. Please contact support." });
+      }
     } catch (error: any) {
-      console.error("Error verifying Razorpay payment:", error);
-      res.status(500).json({ error: error.message || "Payment verification failed" });
+      console.error("Error in verify payment endpoint:", error);
+      res.status(500).json({ error: "An unexpected error occurred during verification" });
     }
   });
 
@@ -473,35 +535,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { orderId } = req.params;
 
+      if (!orderId || typeof orderId !== 'string') {
+        return res.status(400).json({ error: "Invalid Order ID" });
+      }
+
       const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
 
-      if (!order.razorpayOrderId) {
-        return res.status(400).json({ error: "Razorpay order not initialized" });
+      // Verify order belongs to user
+      if (order.userId !== req.user.claims.sub) {
+        return res.status(403).json({ error: "Unauthorized: Order does not belong to you" });
       }
 
-      // Generate QR code URL - Razorpay provides this via their dashboard
-      // For now, return the UPI intent link
-      const razorpay = getRazorpayClient();
-      const upiLink = razorpay.generateUPILink(
-        orderId,
-        parseFloat(order.totalAmount),
-        req.user.claims.sub,
-        req.user.email || ''
-      );
+      if (!order.razorpayOrderId) {
+        return res.status(400).json({ error: "Razorpay order not initialized. Please try again." });
+      }
 
-      res.json({
-        orderId,
-        razorpayOrderId: order.razorpayOrderId,
-        amount: order.totalAmount,
-        upiLink,
-        // QR code can be generated client-side using libraries like qrcode.js
-      });
+      const amount = parseFloat(order.totalAmount);
+      if (isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ error: "Invalid order amount" });
+      }
+
+      try {
+        const razorpay = getRazorpayClient();
+        const upiLink = razorpay.generateUPILink(
+          orderId,
+          amount,
+          req.user.claims.sub || '',
+          req.user.email || ''
+        );
+
+        if (!upiLink) {
+          throw new Error("Failed to generate UPI link");
+        }
+
+        res.json({
+          orderId,
+          razorpayOrderId: order.razorpayOrderId,
+          amount: order.totalAmount,
+          currency: 'INR',
+          upiLink,
+        });
+      } catch (upiError: any) {
+        console.error("UPI link generation error:", upiError);
+        res.status(500).json({ error: "Failed to generate payment link. Please try again." });
+      }
     } catch (error: any) {
-      console.error("Error generating QR code:", error);
-      res.status(500).json({ error: "Failed to generate QR code" });
+      console.error("Error in QR code endpoint:", error);
+      res.status(500).json({ error: "Failed to generate QR code. Please try again." });
     }
   });
 

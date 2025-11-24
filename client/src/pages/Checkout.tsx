@@ -9,7 +9,7 @@ import Footer from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import type { Product } from "@shared/schema";
-import { Copy, CheckCircle, AlertCircle } from "lucide-react";
+import { Copy, CheckCircle, AlertCircle, Loader2, Info } from "lucide-react";
 import QRCode from 'qrcode';
 
 declare global {
@@ -35,44 +35,85 @@ export default function Checkout() {
   });
   const [deliverySlot, setDeliverySlot] = useState('morning');
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card'>('upi');
-  const [upiQrCode, setUpiQrCode] = useState<string | null>(null);
   const [upiLink, setUpiLink] = useState<string | null>(null);
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  const { data: products = [] } = useQuery<Product[]>({
+  const { data: products = [], isLoading: productsLoading, error: productsError } = useQuery<Product[]>({
     queryKey: ['/api/products'],
+    retry: 2,
   });
 
-  const { data: rawCart = [] } = useQuery<any[]>({
+  const { data: rawCart = [], isLoading: cartLoading, error: cartError } = useQuery<any[]>({
     queryKey: ['/api/cart'],
+    retry: 1,
   });
 
   useEffect(() => {
-    if (rawCart && rawCart.length > 0 && products.length > 0) {
-      const enriched = rawCart
-        .map((item: any) => {
-          const product = products.find(p => p.id === item.productId);
-          return product ? {
-            ...product,
-            cartItemId: item.id,
-            quantity: item.quantity,
-          } : null;
-        })
-        .filter((item: CartItemData | null): item is CartItemData => item !== null);
-      setCartItems(enriched);
+    if (rawCart && Array.isArray(rawCart) && rawCart.length > 0 && products.length > 0) {
+      try {
+        const enriched = rawCart
+          .map((item: any) => {
+            const product = products.find(p => p.id === item.productId);
+            return product && item.quantity > 0 ? {
+              ...product,
+              cartItemId: item.id,
+              quantity: item.quantity,
+            } : null;
+          })
+          .filter((item: CartItemData | null): item is CartItemData => item !== null);
+        setCartItems(enriched);
+      } catch (error) {
+        console.error('Error processing cart items:', error);
+        toast({
+          title: "Cart Error",
+          description: "Failed to load cart items. Please refresh the page.",
+          variant: "destructive",
+        });
+      }
     }
   }, [rawCart, products]);
 
-  const totalAmount = cartItems.reduce((sum, item) => sum + parseFloat(item.price) * item.quantity, 0);
+  const totalAmount = cartItems.reduce((sum, item) => {
+    try {
+      return sum + (parseFloat(item.price) * item.quantity);
+    } catch {
+      return sum;
+    }
+  }, 0);
   const deliveryFee = totalAmount > 500 ? 0 : 50;
   const finalAmount = totalAmount + deliveryFee;
 
+  const validateAddress = () => {
+    const errors: Record<string, string> = {};
+    
+    if (!deliveryAddress.line1?.trim()) {
+      errors.line1 = "Address is required";
+    }
+    if (!deliveryAddress.city?.trim()) {
+      errors.city = "City is required";
+    }
+    if (!deliveryAddress.state?.trim()) {
+      errors.state = "State is required";
+    }
+    if (!deliveryAddress.pincode?.trim()) {
+      errors.pincode = "Pincode is required";
+    } else if (!/^\d{6}$/.test(deliveryAddress.pincode)) {
+      errors.pincode = "Pincode must be 6 digits";
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const checkoutMutation = useMutation({
     mutationFn: async () => {
-      console.log('Starting checkout...', { deliveryAddress, deliverySlot, deliveryFee, paymentMethod });
-      setPaymentStatus('processing');
+      if (!validateAddress()) {
+        throw new Error("Please fill all required fields correctly");
+      }
+
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -83,8 +124,8 @@ export default function Checkout() {
           paymentMethod,
         }),
       });
+      
       const data = await res.json();
-      console.log('Checkout response:', { status: res.status, data });
       if (!res.ok) {
         throw new Error(data.error || "Failed to create checkout");
       }
@@ -92,137 +133,149 @@ export default function Checkout() {
     },
     onSuccess: async (data) => {
       try {
-        console.log('Checkout success:', { paymentMethod: data.paymentMethod });
-        
         if (data.paymentMethod === 'upi') {
-          // Handle Razorpay UPI payment
-          console.log('Initializing UPI payment...', { orderId: data.orderId });
           setCurrentOrderId(data.orderId);
+          setPaymentStatus('processing');
 
-          // Fetch QR code and UPI link
-          const qrRes = await fetch(`/api/razorpay/qr-code/${data.orderId}`);
-          if (!qrRes.ok) {
-            throw new Error("Failed to generate payment QR code");
-          }
-          const qrData = await qrRes.json();
-          console.log('QR data received:', qrData);
-          
-          setUpiLink(qrData.upiLink);
-
-          // Generate QR code canvas
-          if (qrCanvasRef.current) {
-            try {
-              await QRCode.toCanvas(qrCanvasRef.current, qrData.upiLink, {
-                width: 250,
-                margin: 2,
-                color: { dark: '#000000', light: '#ffffff' },
-              });
-              console.log('QR code generated');
-            } catch (qrError) {
-              console.error('QR code generation error:', qrError);
+          try {
+            const qrRes = await fetch(`/api/razorpay/qr-code/${data.orderId}`);
+            if (!qrRes.ok) {
+              throw new Error("Failed to generate QR code. Please try again.");
             }
-          }
+            const qrData = await qrRes.json();
+            
+            if (!qrData.upiLink) {
+              throw new Error("Invalid QR code data received");
+            }
+            
+            setUpiLink(qrData.upiLink);
 
-          setPaymentStatus('idle');
+            if (qrCanvasRef.current) {
+              try {
+                await QRCode.toCanvas(qrCanvasRef.current, qrData.upiLink, {
+                  width: 250,
+                  margin: 2,
+                  color: { dark: '#000000', light: '#ffffff' },
+                });
+              } catch (qrError) {
+                console.error('QR generation error:', qrError);
+                toast({
+                  title: "QR Code Warning",
+                  description: "Could not generate QR code. Use the UPI link instead.",
+                });
+              }
+            }
+
+            setPaymentStatus('idle');
+            toast({
+              title: "Payment Ready",
+              description: "Scan the QR code or use the UPI link to complete payment",
+            });
+          } catch (qrError: any) {
+            setPaymentStatus('failed');
+            throw qrError;
+          }
         } else {
-          // Handle Stripe card payment
-          console.log('Initializing Stripe payment...');
-          const keyRes = await fetch("/api/stripe/publishable-key");
-          if (!keyRes.ok) {
-            throw new Error("Failed to fetch Stripe key");
-          }
-          const { publishableKey } = await keyRes.json();
-          console.log('Got Stripe key, redirecting to checkout...');
-
-          if (window.Stripe) {
-            const stripe = window.Stripe(publishableKey);
-            console.log('Stripe instance created, redirecting...');
-            const result = await stripe.redirectToCheckout({ sessionId: data.sessionId });
-            if (result.error) {
-              throw new Error(result.error.message);
+          try {
+            const keyRes = await fetch("/api/stripe/publishable-key");
+            if (!keyRes.ok) {
+              throw new Error("Failed to load Stripe. Please try again.");
             }
-          } else {
-            throw new Error('Stripe.js not loaded');
+            const { publishableKey } = await keyRes.json();
+
+            if (!publishableKey) {
+              throw new Error("Stripe configuration missing");
+            }
+
+            if (!window.Stripe) {
+              throw new Error("Stripe.js is not loaded. Please refresh and try again.");
+            }
+
+            const stripe = window.Stripe(publishableKey);
+            const result = await stripe.redirectToCheckout({ sessionId: data.sessionId });
+            
+            if (result?.error) {
+              throw new Error(result.error.message || "Stripe redirect failed");
+            }
+          } catch (stripeError: any) {
+            setPaymentStatus('failed');
+            throw stripeError;
           }
         }
       } catch (error: any) {
-        console.error("Payment initialization error:", error);
         setPaymentStatus('failed');
-        toast({
-          title: "Payment Error",
-          description: error.message || "Failed to initialize payment",
-          variant: "destructive",
-        });
+        throw error;
       }
     },
     onError: (error: any) => {
-      console.error("Checkout error:", error);
       setPaymentStatus('failed');
+      const errorMessage = error?.message || "Checkout failed. Please try again.";
       toast({
         title: "Checkout Error",
-        description: error.message || "Failed to create checkout session",
+        description: errorMessage,
         variant: "destructive",
       });
     },
   });
-
-  const verifyUPIPaymentMutation = useMutation({
-    mutationFn: async (paymentDetails: {
-      razorpayPaymentId: string;
-      razorpayOrderId: string;
-      razorpaySignature: string;
-    }) => {
-      const res = await fetch("/api/razorpay/verify-payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderId: currentOrderId,
-          ...paymentDetails,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Payment verification failed");
-      }
-      return data;
-    },
-    onSuccess: (data) => {
-      setPaymentStatus('success');
-      toast({
-        title: "Payment Successful",
-        description: `Order ${currentOrderId} confirmed`,
-      });
-      // Redirect to order page after 2 seconds
-      setTimeout(() => {
-        window.location.href = `/orders/${currentOrderId}`;
-      }, 2000);
-    },
-    onError: (error: any) => {
-      setPaymentStatus('failed');
-      toast({
-        title: "Verification Failed",
-        description: error.message || "Payment verification failed",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({
-      title: "Copied",
-      description: "UPI link copied to clipboard",
-    });
-  };
 
   const isValid = Boolean(
     deliveryAddress.line1?.trim() && 
     deliveryAddress.city?.trim() && 
     deliveryAddress.state?.trim() && 
-    deliveryAddress.pincode?.trim()
+    deliveryAddress.pincode?.trim() &&
+    /^\d{6}$/.test(deliveryAddress.pincode)
   );
 
   const hasEmptyCart = cartItems.length === 0;
+  const isLoading = productsLoading || cartLoading;
+  const hasError = productsError || cartError;
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast({
+        title: "Copied",
+        description: "UPI link copied to clipboard",
+      });
+    }).catch(() => {
+      toast({
+        title: "Copy Failed",
+        description: "Could not copy to clipboard",
+        variant: "destructive",
+      });
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header cartItemCount={0} />
+        <main className="flex-1 flex items-center justify-center px-4">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-muted-foreground">Loading checkout...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header cartItemCount={cartItems.length} />
+        <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-8 py-8 w-full">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Failed to load checkout. Please refresh the page or try again later.
+            </AlertDescription>
+          </Alert>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -232,7 +285,9 @@ export default function Checkout() {
 
         {hasEmptyCart ? (
           <Card className="p-8 text-center">
+            <AlertCircle className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
             <p className="text-muted-foreground mb-4">Your cart is empty</p>
+            <Button onClick={() => window.history.back()}>Go Back Shopping</Button>
           </Card>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -241,12 +296,21 @@ export default function Checkout() {
               <Card className="p-6">
                 <h2 className="text-xl font-semibold mb-4">Delivery Address</h2>
                 <div className="space-y-4">
-                  <Input
-                    placeholder="Address Line 1"
-                    value={deliveryAddress.line1}
-                    onChange={(e) => setDeliveryAddress({ ...deliveryAddress, line1: e.target.value })}
-                    data-testid="input-address-line1"
-                  />
+                  <div>
+                    <Input
+                      placeholder="Address Line 1 *"
+                      value={deliveryAddress.line1}
+                      onChange={(e) => {
+                        setDeliveryAddress({ ...deliveryAddress, line1: e.target.value });
+                        if (formErrors.line1) setFormErrors({ ...formErrors, line1: '' });
+                      }}
+                      data-testid="input-address-line1"
+                      className={formErrors.line1 ? 'border-red-500' : ''}
+                    />
+                    {formErrors.line1 && (
+                      <p className="text-red-500 text-sm mt-1">{formErrors.line1}</p>
+                    )}
+                  </div>
                   <Input
                     placeholder="Address Line 2 (Optional)"
                     value={deliveryAddress.line2}
@@ -254,25 +318,53 @@ export default function Checkout() {
                     data-testid="input-address-line2"
                   />
                   <div className="grid grid-cols-2 gap-4">
-                    <Input
-                      placeholder="City"
-                      value={deliveryAddress.city}
-                      onChange={(e) => setDeliveryAddress({ ...deliveryAddress, city: e.target.value })}
-                      data-testid="input-city"
-                    />
-                    <Input
-                      placeholder="State"
-                      value={deliveryAddress.state}
-                      onChange={(e) => setDeliveryAddress({ ...deliveryAddress, state: e.target.value })}
-                      data-testid="input-state"
-                    />
+                    <div>
+                      <Input
+                        placeholder="City *"
+                        value={deliveryAddress.city}
+                        onChange={(e) => {
+                          setDeliveryAddress({ ...deliveryAddress, city: e.target.value });
+                          if (formErrors.city) setFormErrors({ ...formErrors, city: '' });
+                        }}
+                        data-testid="input-city"
+                        className={formErrors.city ? 'border-red-500' : ''}
+                      />
+                      {formErrors.city && (
+                        <p className="text-red-500 text-sm mt-1">{formErrors.city}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Input
+                        placeholder="State *"
+                        value={deliveryAddress.state}
+                        onChange={(e) => {
+                          setDeliveryAddress({ ...deliveryAddress, state: e.target.value });
+                          if (formErrors.state) setFormErrors({ ...formErrors, state: '' });
+                        }}
+                        data-testid="input-state"
+                        className={formErrors.state ? 'border-red-500' : ''}
+                      />
+                      {formErrors.state && (
+                        <p className="text-red-500 text-sm mt-1">{formErrors.state}</p>
+                      )}
+                    </div>
                   </div>
-                  <Input
-                    placeholder="Pincode"
-                    value={deliveryAddress.pincode}
-                    onChange={(e) => setDeliveryAddress({ ...deliveryAddress, pincode: e.target.value })}
-                    data-testid="input-pincode"
-                  />
+                  <div>
+                    <Input
+                      placeholder="Pincode (6 digits) *"
+                      value={deliveryAddress.pincode}
+                      onChange={(e) => {
+                        setDeliveryAddress({ ...deliveryAddress, pincode: e.target.value });
+                        if (formErrors.pincode) setFormErrors({ ...formErrors, pincode: '' });
+                      }}
+                      data-testid="input-pincode"
+                      maxLength={6}
+                      className={formErrors.pincode ? 'border-red-500' : ''}
+                    />
+                    {formErrors.pincode && (
+                      <p className="text-red-500 text-sm mt-1">{formErrors.pincode}</p>
+                    )}
+                  </div>
                 </div>
               </Card>
 
@@ -302,7 +394,7 @@ export default function Checkout() {
                     onClick={() => {
                       setPaymentMethod('upi');
                       setPaymentStatus('idle');
-                      setUpiQrCode(null);
+                      setUpiLink(null);
                     }}
                     data-testid="button-payment-upi"
                     className="flex-1"
@@ -330,7 +422,8 @@ export default function Checkout() {
                   
                   {paymentStatus === 'processing' && (
                     <div className="text-center">
-                      <p className="text-muted-foreground mb-4">Generating payment QR code...</p>
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+                      <p className="text-muted-foreground">Generating payment QR code...</p>
                     </div>
                   )}
 
@@ -380,9 +473,12 @@ export default function Checkout() {
                         </div>
                       )}
 
-                      <p className="text-xs text-muted-foreground text-center">
-                        Scan the QR code with any UPI app (Google Pay, PhonePe, Paytm, etc.)
-                      </p>
+                      <Alert className="bg-blue-50 dark:bg-blue-900 border-blue-200 dark:border-blue-800">
+                        <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <AlertDescription className="text-sm text-blue-800 dark:text-blue-200">
+                          Scan the QR code with any UPI app (Google Pay, PhonePe, Paytm, BHIM, etc.)
+                        </AlertDescription>
+                      </Alert>
                     </div>
                   )}
                 </Card>
@@ -417,24 +513,31 @@ export default function Checkout() {
                   </div>
                 </div>
 
-                {!isValid && (
-                  <Alert className="mb-4" data-testid="alert-invalid-address">
+                {Object.keys(formErrors).length > 0 && (
+                  <Alert className="mb-4" data-testid="alert-form-errors">
+                    <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      Please fill in all delivery address details to continue
+                      Please fix the errors above
                     </AlertDescription>
                   </Alert>
                 )}
 
                 <Button
                   onClick={() => {
-                    console.log('Checkout button clicked');
-                    checkoutMutation.mutate();
+                    if (validateAddress()) {
+                      checkoutMutation.mutate();
+                    }
                   }}
                   disabled={!isValid || checkoutMutation.isPending || hasEmptyCart}
                   className="w-full"
                   data-testid="button-proceed-payment"
                 >
-                  {checkoutMutation.isPending ? 'Processing...' : `Proceed to ${paymentMethod === 'upi' ? 'UPI' : 'Card'} Payment`}
+                  {checkoutMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : `Proceed to ${paymentMethod === 'upi' ? 'UPI' : 'Card'} Payment`}
                 </Button>
               </Card>
             </div>
