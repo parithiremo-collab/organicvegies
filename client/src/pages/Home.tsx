@@ -282,6 +282,3 @@ export default function Home() {
     </div>
   );
 }
-
-// Add at the bottom before the component ends - PHASE 5: SEO
-import SEOHead from "@/components/SEOHead";
