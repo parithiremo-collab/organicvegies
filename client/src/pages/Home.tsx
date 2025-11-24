@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
@@ -9,21 +9,26 @@ import FarmerSection from "@/components/FarmerSection";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import type { Category, Product } from "@shared/schema";
 
 interface CartItem {
   id: string;
+  productId: string;
+  quantity: number;
+}
+
+interface CartItemWithProduct extends CartItem {
   name: string;
   image: string;
   price: number;
-  quantity: number;
   weight: string;
 }
 
 export default function Home() {
   const [cartOpen, setCartOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const { toast } = useToast();
 
   // Fetch categories
@@ -48,51 +53,95 @@ export default function Home() {
     retry: 2,
   });
 
-  const handleAddToCart = (productId: string) => {
-    const product = products.find(p => p.id === productId);
-    if (!product) return;
+  // Fetch cart items
+  const { data: rawCartItems = [] } = useQuery<CartItem[]>({
+    queryKey: ['/api/cart'],
+    retry: false,
+  });
 
-    const existingItem = cartItems.find(item => item.id === productId);
-    
-    if (existingItem) {
-      setCartItems(cartItems.map(item =>
-        item.id === productId
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      ));
-      toast({
-        title: "Updated cart",
-        description: `Increased quantity of ${product.name}`,
+  // Enrich cart items with product data
+  const [cartItems, setCartItems] = useState<CartItemWithProduct[]>([]);
+  useEffect(() => {
+    if (rawCartItems.length > 0 && products.length > 0) {
+      const enriched = rawCartItems
+        .map(item => {
+          const product = products.find(p => p.id === item.productId);
+          return product ? {
+            id: item.id,
+            productId: item.productId,
+            quantity: item.quantity,
+            name: product.name,
+            image: product.imageUrl,
+            price: parseFloat(product.price),
+            weight: product.weight,
+          } : null;
+        })
+        .filter((item): item is CartItemWithProduct => item !== null);
+      setCartItems(enriched);
+    }
+  }, [rawCartItems, products]);
+
+  const addToCartMutation = useMutation({
+    mutationFn: async (productId: string) => {
+      const res = await fetch("/api/cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId, quantity: 1 }),
       });
-    } else {
-      setCartItems([...cartItems, { 
-        id: product.id,
-        name: product.name,
-        image: product.imageUrl,
-        price: parseFloat(product.price),
-        quantity: 1,
-        weight: product.weight,
-      }]);
+      if (!res.ok) throw new Error("Failed to add to cart");
+      return res.json();
+    },
+    onSuccess: (_, productId) => {
+      const product = products.find(p => p.id === productId);
       toast({
         title: "Added to cart",
-        description: `${product.name} has been added to your cart`,
+        description: `${product?.name} has been added to your cart`,
       });
-    }
+      queryClient.invalidateQueries({ queryKey: ['/api/cart'] });
+    },
+  });
+
+  const updateQuantityMutation = useMutation({
+    mutationFn: async ({ id, quantity }: { id: string; quantity: number }) => {
+      const res = await fetch(`/api/cart/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity }),
+      });
+      if (!res.ok) throw new Error("Failed to update cart");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cart'] });
+    },
+  });
+
+  const removeItemMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/cart/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to remove from cart");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Removed from cart",
+        description: "Item has been removed from your cart",
+        variant: "destructive",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/cart'] });
+    },
+  });
+
+  const handleAddToCart = (productId: string) => {
+    addToCartMutation.mutate(productId);
   };
 
   const handleUpdateQuantity = (id: string, quantity: number) => {
-    setCartItems(cartItems.map(item =>
-      item.id === id ? { ...item, quantity } : item
-    ));
+    updateQuantityMutation.mutate({ id, quantity });
   };
 
   const handleRemoveItem = (id: string) => {
-    setCartItems(cartItems.filter(item => item.id !== id));
-    toast({
-      title: "Removed from cart",
-      description: "Item has been removed from your cart",
-      variant: "destructive",
-    });
+    removeItemMutation.mutate(id);
   };
 
   const handleCheckout = () => {

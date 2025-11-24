@@ -1,10 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./db";
-import { categories, products } from "@shared/schema";
+import { categories, products, cartItems } from "@shared/schema";
 import { eq, and, or, ilike, gte, lte, desc } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { storage } from "./storage";
+import { insertCartItemSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication (MANDATORY for Replit Auth)
@@ -146,6 +147,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching product:", error);
       res.status(500).json({ error: "Failed to fetch product" });
+    }
+  });
+
+  // Cart endpoints (protected)
+  app.get("/api/cart", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const items = await db.select({
+        id: cartItems.id,
+        productId: cartItems.productId,
+        quantity: cartItems.quantity,
+      }).from(cartItems).where(eq(cartItems.userId, userId));
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching cart:", error);
+      res.status(500).json({ error: "Failed to fetch cart" });
+    }
+  });
+
+  app.post("/api/cart", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { productId, quantity } = req.body;
+      
+      if (!productId || !quantity) {
+        return res.status(400).json({ error: "Missing productId or quantity" });
+      }
+
+      const existing = await db.select().from(cartItems)
+        .where(and(eq(cartItems.userId, userId), eq(cartItems.productId, productId)));
+
+      if (existing.length > 0) {
+        await db.update(cartItems)
+          .set({ quantity: existing[0].quantity + quantity })
+          .where(eq(cartItems.id, existing[0].id));
+      } else {
+        await db.insert(cartItems).values({ userId, productId, quantity });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+      res.status(500).json({ error: "Failed to add item to cart" });
+    }
+  });
+
+  app.patch("/api/cart/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { quantity } = req.body;
+      
+      if (quantity <= 0) {
+        await db.delete(cartItems).where(eq(cartItems.id, id));
+      } else {
+        await db.update(cartItems).set({ quantity }).where(eq(cartItems.id, id));
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating cart:", error);
+      res.status(500).json({ error: "Failed to update cart" });
+    }
+  });
+
+  app.delete("/api/cart/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await db.delete(cartItems).where(eq(cartItems.id, id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing from cart:", error);
+      res.status(500).json({ error: "Failed to remove item from cart" });
     }
   });
 
