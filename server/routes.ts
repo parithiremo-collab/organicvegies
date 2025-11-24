@@ -3,15 +3,22 @@ import { createServer, type Server } from "http";
 import { db } from "./db";
 import { categories, products, cartItems, orders, orderItems, users, farmerProfiles, agentProfiles, agentSales, agentFarmerRelations, adminProfiles, superAdminProfiles, auditLogs } from "@shared/schema";
 import { eq, and, or, ilike, gte, lte, desc } from "drizzle-orm";
-import { setupAuth, isAuthenticated } from "./replitAuth";
-import { setupTestAuth } from "./testAuth";
+import { setupAuth, isAuthenticated, isReplitAuthEnabled } from "./replitAuth";
+import { setupTestAuth, setupSessionMiddleware } from "./testAuth";
 import { storage } from "./storage";
 import { insertCartItemSchema, insertOrderSchema, insertOrderItemSchema, insertFarmerProfileSchema, insertAgentProfileSchema, insertAdminProfileSchema, insertSuperAdminProfileSchema } from "@shared/schema";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Setup authentication (MANDATORY for Replit Auth)
-  await setupAuth(app);
+  // Setup authentication based on configuration
+  if (isReplitAuthEnabled()) {
+    // Production: Replit Auth with OIDC
+    await setupAuth(app);
+  } else {
+    // Development: Test auth with session middleware fallback
+    console.log("🧪 Using test authentication mode (ENABLE_REPLIT_AUTH=false)");
+    setupSessionMiddleware(app);
+  }
   
   // Setup test authentication for local development (NODE_ENV=development)
   setupTestAuth(app);
@@ -813,6 +820,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching audit logs:", error);
       res.status(500).json({ error: "Failed to fetch logs" });
+    }
+  });
+
+  // SuperAdmin: Get platform config
+  app.get("/api/superadmin/config", isAuthenticated, async (req: any, res) => {
+    try {
+      res.json({
+        enableReplitAuth: isReplitAuthEnabled(),
+      });
+    } catch (error) {
+      console.error("Error fetching config:", error);
+      res.status(500).json({ error: "Failed to fetch config" });
+    }
+  });
+
+  // SuperAdmin: Update platform config
+  app.post("/api/superadmin/config", isAuthenticated, async (req: any, res) => {
+    try {
+      const { enableReplitAuth } = req.body;
+      
+      // Update environment variable
+      if (typeof enableReplitAuth === "boolean") {
+        process.env.ENABLE_REPLIT_AUTH = enableReplitAuth ? "true" : "false";
+      }
+
+      // Log the change (non-critical - don't fail if audit_logs table doesn't exist)
+      try {
+        await db.insert(auditLogs).values({
+          adminId: req.user.claims.sub,
+          action: "UPDATE_CONFIG",
+          targetType: "config",
+          targetId: "auth_mode",
+        });
+      } catch (logError: any) {
+        // Audit logging failed, but config was updated - this is okay
+        if (logError.code !== "42P01") {
+          console.error("Error logging config change:", logError.message);
+        }
+      }
+
+      res.json({
+        success: true,
+        enableReplitAuth: isReplitAuthEnabled(),
+      });
+    } catch (error) {
+      console.error("Error updating config:", error);
+      res.status(500).json({ error: "Failed to update config" });
     }
   });
 

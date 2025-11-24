@@ -54,13 +54,15 @@ export default function AgentDashboard() {
     },
   });
 
-  const { data: farmers = [] } = useQuery({
+  const { data: farmersData } = useQuery({
     queryKey: ["/api/agent/farmers"],
     queryFn: async () => {
       const res = await fetch("/api/agent/farmers");
       return res.json();
     },
   });
+
+  const farmers = Array.isArray(farmersData) ? farmersData : [];
 
   const profileMutation = useMutation({
     mutationFn: async () => {

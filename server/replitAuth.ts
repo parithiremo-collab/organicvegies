@@ -62,7 +62,17 @@ async function upsertUser(
   });
 }
 
+export function isReplitAuthEnabled(): boolean {
+  return process.env.ENABLE_REPLIT_AUTH !== "false";
+}
+
 export async function setupAuth(app: Express) {
+  if (!isReplitAuthEnabled()) {
+    console.log("ℹ️  Replit Auth disabled (ENABLE_REPLIT_AUTH=false)");
+    return;
+  }
+
+  console.log("🔐 Setting up Replit Auth...");
   app.set("trust proxy", 1);
   app.use(getSession());
   app.use(passport.initialize());
@@ -135,8 +145,14 @@ export async function setupAuth(app: Express) {
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   const user = req.user as any;
 
-  if (!req.isAuthenticated() || !user.expires_at) {
+  // If user is authenticated (either via Replit Auth or test auth)
+  if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  // If test auth or no expires_at, allow through
+  if (!user.expires_at) {
+    return next();
   }
 
   const now = Math.floor(Date.now() / 1000);

@@ -5,6 +5,9 @@
  */
 
 import type { Express, RequestHandler } from "express";
+import passport from "passport";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, farmerProfiles, agentProfiles, adminProfiles, superAdminProfiles } from "@shared/schema";
@@ -130,6 +133,38 @@ export async function seedTestUsers() {
   } catch (error) {
     console.error("❌ Error seeding test users:", error);
   }
+}
+
+export function setupSessionMiddleware(app: Express) {
+  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  const pgStore = connectPg(session);
+  const sessionStore = new pgStore({
+    conString: process.env.DATABASE_URL,
+    createTableIfMissing: false,
+    ttl: sessionTtl,
+    tableName: "sessions",
+  });
+
+  app.set("trust proxy", 1);
+  app.use(session({
+    secret: process.env.SESSION_SECRET!,
+    store: sessionStore,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: sessionTtl,
+    },
+  }));
+
+  app.use(passport.initialize());
+  app.use(passport.session());
+
+  // Setup basic serialization
+  passport.serializeUser((user: any, cb) => cb(null, user));
+  passport.deserializeUser((user: any, cb) => cb(null, user));
 }
 
 export function setupTestAuth(app: Express) {

@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +37,14 @@ export default function SuperAdminDashboard() {
     queryKey: ["/api/superadmin/audit-logs"],
     queryFn: async () => {
       const res = await fetch("/api/superadmin/audit-logs?limit=20");
+      return res.json();
+    },
+  });
+
+  const { data: config } = useQuery({
+    queryKey: ["/api/superadmin/config"],
+    queryFn: async () => {
+      const res = await fetch("/api/superadmin/config");
       return res.json();
     },
   });
@@ -72,6 +81,25 @@ export default function SuperAdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/superadmin/admins"] });
       toast({ title: "Success", description: "Admin removed" });
+    },
+  });
+
+  const updateConfigMutation = useMutation({
+    mutationFn: async (newConfig: any) => {
+      const res = await fetch("/api/superadmin/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newConfig),
+      });
+      if (!res.ok) throw new Error("Failed to update config");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/superadmin/config"] });
+      toast({ title: "Success", description: "Configuration updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
@@ -123,9 +151,10 @@ export default function SuperAdminDashboard() {
 
         {/* Tabs */}
         <Tabs defaultValue="admins" className="w-full" data-testid="tabs-superadmin">
-          <TabsList className="grid w-full grid-cols-2" data-testid="tabs-list-superadmin">
+          <TabsList className="grid w-full grid-cols-3" data-testid="tabs-list-superadmin">
             <TabsTrigger value="admins" data-testid="tab-admins">Admin Management</TabsTrigger>
             <TabsTrigger value="audit" data-testid="tab-audit">Audit Logs</TabsTrigger>
+            <TabsTrigger value="settings" data-testid="tab-settings">Settings</TabsTrigger>
           </TabsList>
 
           {/* Admins Tab */}
@@ -206,6 +235,68 @@ export default function SuperAdminDashboard() {
                 </Card>
               ))}
             </div>
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="space-y-4">
+            <h2 className="text-2xl font-bold mb-6">Platform Settings</h2>
+            <Card className="p-6">
+              <div className="space-y-6">
+                {/* Authentication Mode */}
+                <div className="border-b pb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="text-lg font-semibold">Authentication Mode</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Toggle between Replit Auth and Test Auth modes
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium">
+                        {config?.enableReplitAuth ? "Replit Auth (On)" : "Test Auth (Off)"}
+                      </span>
+                      <Switch
+                        checked={config?.enableReplitAuth || false}
+                        onCheckedChange={(checked) => {
+                          updateConfigMutation.mutate({
+                            enableReplitAuth: checked,
+                          });
+                        }}
+                        disabled={updateConfigMutation.isPending}
+                        data-testid="switch-replit-auth"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {config?.enableReplitAuth
+                      ? "Production mode: Using Replit's OIDC authentication"
+                      : "Development mode: Using test authentication with quick login buttons"}
+                  </p>
+                </div>
+
+                {/* Test Auth Info */}
+                <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm font-semibold mb-2">Test Authentication Users</p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    When Replit Auth is disabled, use these test users to login:
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>Customer: customer@test.local</div>
+                    <div>Farmer: farmer@test.local</div>
+                    <div>Agent: agent@test.local</div>
+                    <div>Admin: admin@test.local</div>
+                  </div>
+                </div>
+
+                {/* Replit Auth Info */}
+                <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border border-green-200 dark:border-green-800">
+                  <p className="text-sm font-semibold mb-2">Replit Auth</p>
+                  <p className="text-xs text-muted-foreground">
+                    When enabled, users authenticate using their Replit accounts. This is the recommended mode for production.
+                  </p>
+                </div>
+              </div>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>
