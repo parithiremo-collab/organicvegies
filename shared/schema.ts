@@ -3,7 +3,7 @@ import { pgTable, text, varchar, integer, boolean, timestamp, decimal, pgEnum, j
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const userRoleEnum = pgEnum("user_role", ["customer", "seller", "agent", "admin"]);
+export const userRoleEnum = pgEnum("user_role", ["customer", "seller", "agent", "admin", "superadmin"]);
 export const orderStatusEnum = pgEnum("order_status", ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "completed", "failed", "refunded"]);
 
@@ -27,6 +27,7 @@ export const users = pgTable("users", {
   phone: text("phone"),
   role: userRoleEnum("role").notNull().default("customer"),
   isVerified: boolean("is_verified").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -69,6 +70,7 @@ export const products = pgTable("products", {
   lowStock: boolean("low_stock").notNull().default(false),
   stock: integer("stock").notNull().default(0),
   weight: text("weight").notNull(),
+  isApproved: boolean("is_approved").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -78,7 +80,7 @@ export const farmerProfiles = pgTable("farmer_profiles", {
   userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
   farmName: text("farm_name").notNull(),
   farmArea: text("farm_area"),
-  farmingType: text("farming_type"), // "organic", "mixed", etc
+  farmingType: text("farming_type"),
   certifications: text("certifications").array(),
   bio: text("bio"),
   profileImageUrl: text("profile_image_url"),
@@ -101,6 +103,40 @@ export const agentProfiles = pgTable("agent_profiles", {
   isVerified: boolean("is_verified").notNull().default(false),
   totalSales: integer("total_sales").notNull().default(0),
   totalEarnings: decimal("total_earnings", { precision: 12, scale: 2 }).notNull().default("0"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Admin profile
+export const adminProfiles = pgTable("admin_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  adminName: text("admin_name").notNull(),
+  department: text("department"),
+  permissions: text("permissions").array(),
+  bio: text("bio"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Super Admin profile
+export const superAdminProfiles = pgTable("super_admin_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  superAdminName: text("super_admin_name").notNull(),
+  bio: text("bio"),
+  permissions: text("permissions").array(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Admin audit log
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  adminId: varchar("admin_id").notNull().references(() => users.id),
+  action: text("action").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: varchar("target_id").notNull(),
+  details: jsonb("details"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -210,6 +246,18 @@ export const insertAgentProfileSchema = createInsertSchema(agentProfiles).omit({
   createdAt: true,
 });
 
+export const insertAdminProfileSchema = createInsertSchema(adminProfiles).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+});
+
+export const insertSuperAdminProfileSchema = createInsertSchema(superAdminProfiles).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -238,5 +286,12 @@ export type FarmerProfile = typeof farmerProfiles.$inferSelect;
 export type InsertAgentProfile = z.infer<typeof insertAgentProfileSchema>;
 export type AgentProfile = typeof agentProfiles.$inferSelect;
 
+export type InsertAdminProfile = z.infer<typeof insertAdminProfileSchema>;
+export type AdminProfile = typeof adminProfiles.$inferSelect;
+
+export type InsertSuperAdminProfile = z.infer<typeof insertSuperAdminProfileSchema>;
+export type SuperAdminProfile = typeof superAdminProfiles.$inferSelect;
+
 export type AgentSale = typeof agentSales.$inferSelect;
 export type AgentFarmerRelation = typeof agentFarmerRelations.$inferSelect;
+export type AuditLog = typeof auditLogs.$inferSelect;

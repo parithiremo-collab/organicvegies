@@ -13,6 +13,8 @@ import Orders from "@/pages/Orders";
 import OrderDetail from "@/pages/OrderDetail";
 import FarmerDashboard from "@/pages/FarmerDashboard";
 import AgentDashboard from "@/pages/AgentDashboard";
+import AdminDashboard from "@/pages/AdminDashboard";
+import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
 import NotFound from "@/pages/not-found";
 
 interface UserData {
@@ -43,7 +45,17 @@ function Router() {
         </>
       ) : (
         <>
-          {user?.role === "seller" ? (
+          {user?.role === "superadmin" ? (
+            <>
+              <Route path="/" component={SuperAdminDashboard} />
+              <Route component={NotFound} />
+            </>
+          ) : user?.role === "admin" ? (
+            <>
+              <Route path="/" component={AdminDashboard} />
+              <Route component={NotFound} />
+            </>
+          ) : user?.role === "seller" ? (
             <>
               <Route path="/" component={FarmerDashboard} />
               <Route component={NotFound} />

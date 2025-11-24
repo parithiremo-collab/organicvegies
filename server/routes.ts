@@ -1,11 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./db";
-import { categories, products, cartItems, orders, orderItems, users, farmerProfiles, agentProfiles, agentSales, agentFarmerRelations } from "@shared/schema";
+import { categories, products, cartItems, orders, orderItems, users, farmerProfiles, agentProfiles, agentSales, agentFarmerRelations, adminProfiles, superAdminProfiles, auditLogs } from "@shared/schema";
 import { eq, and, or, ilike, gte, lte, desc } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { storage } from "./storage";
-import { insertCartItemSchema, insertOrderSchema, insertOrderItemSchema, insertFarmerProfileSchema, insertAgentProfileSchema } from "@shared/schema";
+import { insertCartItemSchema, insertOrderSchema, insertOrderItemSchema, insertFarmerProfileSchema, insertAgentProfileSchema, insertAdminProfileSchema, insertSuperAdminProfileSchema } from "@shared/schema";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -610,6 +610,205 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching connected farmers:", error);
       res.status(500).json({ error: "Failed to fetch farmers" });
+    }
+  });
+
+  // ADMIN ROUTES
+  // Admin: Get platform stats
+  app.get("/api/admin/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const totalUsers = await db.select().from(users);
+      const totalOrders = await db.select().from(orders);
+      const pendingFarmers = await db.select().from(farmerProfiles).where(eq(farmerProfiles.isVerified, false));
+      const pendingProducts = await db.select().from(products).where(eq(products.isApproved, false));
+      
+      const totalRevenue = totalOrders.reduce((sum: any, order: any) => sum + parseFloat(order.totalAmount), 0);
+      
+      res.json({
+        totalUsers: totalUsers.length,
+        totalOrders: totalOrders.length,
+        totalRevenue: totalRevenue.toFixed(2),
+        pendingApprovals: pendingFarmers.length + pendingProducts.length,
+      });
+    } catch (error) {
+      console.error("Error fetching admin stats:", error);
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
+  // Admin: Get pending farmers
+  app.get("/api/admin/farmers/pending", isAuthenticated, async (req: any, res) => {
+    try {
+      const pendingFarmers = await db.select().from(farmerProfiles).where(eq(farmerProfiles.isVerified, false));
+      res.json(pendingFarmers);
+    } catch (error) {
+      console.error("Error fetching pending farmers:", error);
+      res.status(500).json({ error: "Failed to fetch pending farmers" });
+    }
+  });
+
+  // Admin: Approve farmer
+  app.post("/api/admin/farmers/:id/approve", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const updated = await db.update(farmerProfiles)
+        .set({ isVerified: true })
+        .where(eq(farmerProfiles.userId, id))
+        .returning();
+      
+      await db.insert(auditLogs).values({
+        adminId: req.user.claims.sub,
+        action: "APPROVE_FARMER",
+        targetType: "farmer",
+        targetId: id,
+        details: { farmerName: updated[0]?.farmName },
+      });
+      
+      res.json(updated[0]);
+    } catch (error) {
+      console.error("Error approving farmer:", error);
+      res.status(500).json({ error: "Failed to approve farmer" });
+    }
+  });
+
+  // Admin: Get pending products
+  app.get("/api/admin/products/pending", isAuthenticated, async (req: any, res) => {
+    try {
+      const pendingProducts = await db.select().from(products).where(eq(products.isApproved, false));
+      res.json(pendingProducts);
+    } catch (error) {
+      console.error("Error fetching pending products:", error);
+      res.status(500).json({ error: "Failed to fetch pending products" });
+    }
+  });
+
+  // Admin: Approve product
+  app.post("/api/admin/products/:id/approve", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const updated = await db.update(products)
+        .set({ isApproved: true })
+        .where(eq(products.id, id))
+        .returning();
+      
+      await db.insert(auditLogs).values({
+        adminId: req.user.claims.sub,
+        action: "APPROVE_PRODUCT",
+        targetType: "product",
+        targetId: id,
+        details: { productName: updated[0]?.name },
+      });
+      
+      res.json(updated[0]);
+    } catch (error) {
+      console.error("Error approving product:", error);
+      res.status(500).json({ error: "Failed to approve product" });
+    }
+  });
+
+  // SUPER ADMIN ROUTES
+  // SuperAdmin: Get platform stats
+  app.get("/api/superadmin/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const totalUsers = await db.select().from(users);
+      const totalFarmers = await db.select().from(farmerProfiles).where(eq(farmerProfiles.isVerified, true));
+      const activeAdmins = await db.select().from(adminProfiles).where(eq(adminProfiles.isActive, true));
+      const totalOrders = await db.select().from(orders);
+      
+      const totalRevenue = totalOrders.reduce((sum: any, order: any) => sum + parseFloat(order.totalAmount), 0);
+      
+      res.json({
+        totalUsers: totalUsers.length,
+        totalFarmers: totalFarmers.length,
+        activeAdmins: activeAdmins.length,
+        totalRevenue: totalRevenue.toFixed(2),
+      });
+    } catch (error) {
+      console.error("Error fetching superadmin stats:", error);
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
+  // SuperAdmin: Create admin
+  app.post("/api/superadmin/admins", isAuthenticated, async (req: any, res) => {
+    try {
+      const { email } = req.body;
+      
+      const [existingUser] = await db.select().from(users).where(eq(users.email, email));
+      let userId = existingUser?.id;
+      
+      if (!userId) {
+        const newUser = await db.insert(users).values({
+          email,
+          role: "admin",
+        }).returning();
+        userId = newUser[0].id;
+      }
+      
+      const adminProfile = await db.insert(adminProfiles).values({
+        userId,
+        adminName: email.split("@")[0],
+      }).returning();
+      
+      await db.insert(auditLogs).values({
+        adminId: req.user.claims.sub,
+        action: "CREATE_ADMIN",
+        targetType: "admin",
+        targetId: userId,
+        details: { email },
+      });
+      
+      res.json(adminProfile[0]);
+    } catch (error: any) {
+      console.error("Error creating admin:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // SuperAdmin: Get all admins
+  app.get("/api/superadmin/admins", isAuthenticated, async (req: any, res) => {
+    try {
+      const admins = await db.select().from(adminProfiles);
+      res.json(admins);
+    } catch (error) {
+      console.error("Error fetching admins:", error);
+      res.status(500).json({ error: "Failed to fetch admins" });
+    }
+  });
+
+  // SuperAdmin: Remove admin
+  app.delete("/api/superadmin/admins/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      await db.delete(adminProfiles).where(eq(adminProfiles.userId, id));
+      await db.update(users).set({ role: "customer" }).where(eq(users.id, id));
+      
+      await db.insert(auditLogs).values({
+        adminId: req.user.claims.sub,
+        action: "DELETE_ADMIN",
+        targetType: "admin",
+        targetId: id,
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing admin:", error);
+      res.status(500).json({ error: "Failed to remove admin" });
+    }
+  });
+
+  // SuperAdmin: Get audit logs
+  app.get("/api/superadmin/audit-logs", isAuthenticated, async (req: any, res) => {
+    try {
+      const { limit = 20 } = req.query;
+      const logs = await db.select().from(auditLogs)
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(parseInt(limit));
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching audit logs:", error);
+      res.status(500).json({ error: "Failed to fetch logs" });
     }
   });
 
