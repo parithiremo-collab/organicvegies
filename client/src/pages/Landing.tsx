@@ -14,14 +14,8 @@ export default function Landing() {
       
       <div className="max-w-2xl text-center">
         <div className="flex justify-center mb-8">
-          <div className="p-4 bg-primary/10 rounded-lg">
-            <Leaf className="h-16 w-16 text-primary" />
-          </div>
+          <img src="/ulavar-angadi-logo.jpg" alt="Ulavar Angadi Logo" className="h-48 object-contain" />
         </div>
-        
-        <h1 className="font-accent text-5xl md:text-6xl font-bold mb-4 text-foreground">
-          Ulavar Angadi
-        </h1>
         
         <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
           {t('heroSubtitle')}
