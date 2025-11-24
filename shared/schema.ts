@@ -55,8 +55,6 @@ export const categories = pgTable("categories", {
 export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   categoryId: varchar("category_id").notNull().references(() => categories.id),
-  sellerId: varchar("seller_id").references(() => users.id),
-  farmerId: varchar("farmer_id").references(() => users.id),
   name: text("name").notNull(),
   description: text("description").notNull(),
   imageUrl: text("image_url").notNull(),
@@ -67,9 +65,7 @@ export const products = pgTable("products", {
   origin: text("origin").notNull(),
   inStock: boolean("in_stock").notNull().default(true),
   lowStock: boolean("low_stock").notNull().default(false),
-  stock: integer("stock").notNull().default(0),
   weight: text("weight").notNull(),
-  isApproved: boolean("is_approved").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
