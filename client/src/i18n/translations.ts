@@ -4,6 +4,53 @@ export interface Translations {
   [key: string]: string | { [key: string]: string };
 }
 
+// Product name and description translations
+export const productTranslations: Record<Language, Record<string, { name: string; description: string }>> = {
+  en: {
+    'prod-1': { name: 'Organic Tomatoes', description: 'Fresh red tomatoes from certified organic farms' },
+    'prod-2': { name: 'Organic Spinach', description: 'Fresh spinach leaves, pesticide-free' },
+    'prod-3': { name: 'Organic Carrots', description: 'Sweet orange carrots from northern farms' },
+    'prod-4': { name: 'Organic Apples', description: 'Crispy red apples, fresh from orchards' },
+    'prod-5': { name: 'Organic Bananas', description: 'Ripe yellow bananas, naturally ripened' },
+  },
+  hi: {
+    'prod-1': { name: 'जैविक टमाटर', description: 'प्रमाणित जैविक खेतों से ताजा लाल टमाटर' },
+    'prod-2': { name: 'जैविक पालक', description: 'ताजा पालक की पत्तियां, कीटनाशक मुक्त' },
+    'prod-3': { name: 'जैविक गाजर', description: 'उत्तरी खेतों से मीठी नारंगी गाजर' },
+    'prod-4': { name: 'जैविक सेब', description: 'बागों से ताजा कुरकुरे लाल सेब' },
+    'prod-5': { name: 'जैविक केला', description: 'प्राकृतिक रूप से पका हुआ पीला केला' },
+  },
+  ta: {
+    'prod-1': { name: 'கரிம தக்காளி', description: 'சான்றிதழ் பெற்ற கரிம பண்ணைகளிலிருந்து புதிய சிவப்பு தக்காளி' },
+    'prod-2': { name: 'கரிம கீரை', description: 'புதிய கீரையின் இலைகள், பூச்சிக்கொல்லி இல்லாத' },
+    'prod-3': { name: 'கரிம கேரட்', description: 'வடக்கு பண்ணைகளிலிருந்து இனிப்பான ஆரஞ்சு கேரட்' },
+    'prod-4': { name: 'கரிம ஆப்பிள்', description: 'தோட்டங்களிலிருந்து புதிய சிறுவயது சிவப்பு ஆப்பிள்' },
+    'prod-5': { name: 'கரிம வாழை', description: 'இயற்கையாக பழுத்த மஞ்சள் வாழை' },
+  },
+};
+
+// Category name translations
+export const categoryTranslations: Record<Language, Record<string, string>> = {
+  en: {
+    'Vegetables': 'Vegetables',
+    'Fruits': 'Fruits',
+    'Grains & Pulses': 'Grains & Pulses',
+    'Dairy': 'Dairy',
+  },
+  hi: {
+    'Vegetables': 'सब्जियां',
+    'Fruits': 'फल',
+    'Grains & Pulses': 'अनाज और दालें',
+    'Dairy': 'डेयरी',
+  },
+  ta: {
+    'Vegetables': 'காய்கறிகள்',
+    'Fruits': 'பழங்கள்',
+    'Grains & Pulses': 'தானியங்கள் மற்றும் பருப்புகள்',
+    'Dairy': 'பால் பொருட்கள்',
+  },
+};
+
 export const translations: Record<Language, Translations> = {
   en: {
     // Common

@@ -2,6 +2,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Star, ShoppingCart, MapPin } from "lucide-react";
+import { useTranslation } from "@/i18n/useTranslation";
+import { productTranslations } from "@/i18n/translations";
 
 interface ProductCardProps {
   id: string;
@@ -34,6 +36,12 @@ export default function ProductCard({
   onAddToCart,
   onClick
 }: ProductCardProps) {
+  const { language, t } = useTranslation();
+  
+  // Get translated product name, fallback to English name if not found
+  const translatedProduct = productTranslations[language]?.[id];
+  const displayName = translatedProduct?.name || name;
+  
   const discount = Math.round(((mrp - price) / mrp) * 100);
 
   return (
@@ -55,14 +63,14 @@ export default function ProductCard({
         )}
         {!inStock && (
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-            <Badge variant="secondary">Out of Stock</Badge>
+            <Badge variant="secondary">{t('outOfStock')}</Badge>
           </div>
         )}
       </div>
       
       <div className="p-4 space-y-3">
         <div>
-          <h3 className="font-medium text-base line-clamp-2 mb-1">{name}</h3>
+          <h3 className="font-medium text-base line-clamp-2 mb-1">{displayName}</h3>
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <MapPin className="h-3 w-3" />
             <span>{origin}</span>
@@ -98,7 +106,7 @@ export default function ProductCard({
           data-testid={`button-add-to-cart-${id}`}
         >
           <ShoppingCart className="h-4 w-4" />
-          {inStock ? 'Add to Cart' : 'Out of Stock'}
+          {inStock ? t('addToCart') : t('outOfStock')}
         </Button>
       </div>
     </Card>

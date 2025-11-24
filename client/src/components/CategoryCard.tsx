@@ -1,5 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { ArrowRight } from "lucide-react";
+import { useTranslation } from "@/i18n/useTranslation";
+import { categoryTranslations } from "@/i18n/translations";
 
 interface CategoryCardProps {
   name: string;
@@ -9,6 +11,11 @@ interface CategoryCardProps {
 }
 
 export default function CategoryCard({ name, image, productCount, onClick }: CategoryCardProps) {
+  const { language } = useTranslation();
+  
+  // Get translated category name, fallback to English name if not found
+  const displayName = categoryTranslations[language]?.[name] || name;
+  
   return (
     <Card 
       className="group cursor-pointer overflow-hidden hover-elevate active-elevate-2"
@@ -25,7 +32,7 @@ export default function CategoryCard({ name, image, productCount, onClick }: Cat
       <div className="p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-accent text-lg font-semibold">{name}</h3>
+            <h3 className="font-accent text-lg font-semibold">{displayName}</h3>
             <p className="text-sm text-muted-foreground">{productCount} products</p>
           </div>
           <ArrowRight className="h-5 w-5 text-primary group-hover:translate-x-1 transition-transform" />
