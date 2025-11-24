@@ -2,12 +2,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import heroImage from "@assets/generated_images/hero_section_organic_produce.png";
+import { useTranslation } from "@/i18n/useTranslation";
 
 interface HeroProps {
   onShopNowClick?: () => void;
 }
 
 export default function Hero({ onShopNowClick }: HeroProps) {
+  const { t } = useTranslation();
   return (
     <section className="relative h-96 sm:h-[500px] w-full overflow-hidden">
       <div 
@@ -22,19 +24,19 @@ export default function Hero({ onShopNowClick }: HeroProps) {
           <div className="flex items-center gap-2 mb-4">
             <Badge variant="outline" className="bg-background/80 backdrop-blur-sm border-primary text-foreground">
               <CheckCircle2 className="h-3 w-3 mr-1 text-primary" />
-              Certified Organic
+              {t('certified')}
             </Badge>
             <Badge variant="outline" className="bg-background/80 backdrop-blur-sm border-primary text-foreground">
-              Free Delivery on ₹500+
+              {t('freeDeliveryOver')}
             </Badge>
           </div>
           
           <h1 className="font-accent text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-4">
-            Fresh from Farm to Your Table
+            {t('heroTitle')}
           </h1>
           
           <p className="text-lg sm:text-xl text-white/90 mb-8 max-w-xl">
-            Discover authentic organic produce directly from certified farmers. Pure, fresh, and delivered to your doorstep.
+            {t('heroSubtitle')}
           </p>
           
           <div className="flex flex-wrap gap-4">
@@ -44,7 +46,7 @@ export default function Hero({ onShopNowClick }: HeroProps) {
               onClick={onShopNowClick}
               data-testid="button-shop-now"
             >
-              Shop Now
+              {t('shopNow')}
               <ArrowRight className="h-4 w-4" />
             </Button>
             <Button 

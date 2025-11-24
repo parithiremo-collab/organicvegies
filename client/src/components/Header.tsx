@@ -13,6 +13,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { useTranslation } from "@/i18n/useTranslation";
 
 interface HeaderProps {
   cartItemCount?: number;
@@ -28,6 +30,7 @@ export default function Header({
   searchValue = ""
 }: HeaderProps) {
   const { user } = useAuth();
+  const { t } = useTranslation();
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-8">
@@ -47,13 +50,13 @@ export default function Header({
               <SheetContent side="left" className="w-64">
                 <nav className="flex flex-col gap-4 mt-8">
                   <Link href="/" className="text-base font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-home-mobile">
-                    Home
+                    {t('home')}
                   </Link>
                   <Link href="/categories" className="text-base font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-categories-mobile">
-                    Categories
+                    Vegetables
                   </Link>
                   <Link href="/deals" className="text-base font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-deals-mobile">
-                    Deals
+                    Fruits
                   </Link>
                 </nav>
               </SheetContent>
@@ -65,10 +68,10 @@ export default function Header({
 
             <nav className="hidden lg:flex items-center gap-6">
               <Link href="/categories" className="text-sm font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-categories">
-                Categories
+                Vegetables
               </Link>
               <Link href="/deals" className="text-sm font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-deals">
-                Deals
+                Fruits
               </Link>
             </nav>
           </div>
@@ -78,7 +81,7 @@ export default function Header({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search for organic vegetables, fruits..."
+                placeholder={t('search')}
                 className="w-full pl-10"
                 value={searchValue}
                 onChange={(e) => onSearchChange?.(e.target.value)}
@@ -88,6 +91,7 @@ export default function Header({
           </div>
 
           <div className="flex items-center gap-2">
+            <LanguageSwitcher />
             <Button
               variant="ghost"
               size="icon"
@@ -132,7 +136,7 @@ export default function Header({
                 <DropdownMenuItem asChild>
                   <a href="/api/logout" data-testid="button-logout" className="flex items-center gap-2 cursor-pointer">
                     <LogOut className="h-4 w-4" />
-                    Sign out
+                    {t('logout')}
                   </a>
                 </DropdownMenuItem>
               </DropdownMenuContent>

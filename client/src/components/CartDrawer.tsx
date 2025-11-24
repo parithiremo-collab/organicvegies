@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useTranslation } from "@/i18n/useTranslation";
 
 interface CartItem {
   id: string;
@@ -30,6 +31,7 @@ export default function CartDrawer({
   onRemoveItem,
   onCheckout
 }: CartDrawerProps) {
+  const { t } = useTranslation();
   const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const deliveryFee = subtotal >= 500 ? 0 : 40;
   const total = subtotal + deliveryFee;
@@ -40,19 +42,19 @@ export default function CartDrawer({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <ShoppingBag className="h-5 w-5" />
-            Shopping Cart ({items.length} {items.length === 1 ? 'item' : 'items'})
+            {t('shoppingCart')} ({items.length} {items.length === 1 ? 'item' : 'items'})
           </SheetTitle>
         </SheetHeader>
 
         {items.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
             <ShoppingBag className="h-16 w-16 text-muted-foreground mb-4" />
-            <h3 className="font-semibold text-lg mb-2">Your cart is empty</h3>
+            <h3 className="font-semibold text-lg mb-2">{t('cartEmpty')}</h3>
             <p className="text-muted-foreground text-sm mb-6">
-              Add some fresh organic products to get started
+              {t('cartEmptyMessage')}
             </p>
             <Button onClick={() => onOpenChange(false)} data-testid="button-start-shopping">
-              Start Shopping
+              {t('startShopping')}
             </Button>
           </div>
         ) : (
@@ -121,11 +123,11 @@ export default function CartDrawer({
               
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
+                  <span className="text-muted-foreground">{t('subtotal')}</span>
                   <span data-testid="text-subtotal">₹{subtotal}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Delivery Fee</span>
+                  <span className="text-muted-foreground">{t('deliveryFee')}</span>
                   <span data-testid="text-delivery-fee">
                     {deliveryFee === 0 ? (
                       <span className="text-primary font-medium">FREE</span>
@@ -136,12 +138,12 @@ export default function CartDrawer({
                 </div>
                 {subtotal < 500 && subtotal > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    Add ₹{500 - subtotal} more for free delivery
+                    Add ₹{500 - subtotal} more for {t('checkout')}
                   </p>
                 )}
                 <Separator />
                 <div className="flex justify-between font-semibold text-lg">
-                  <span>Total</span>
+                  <span>{t('total')}</span>
                   <span data-testid="text-total">₹{total}</span>
                 </div>
               </div>
@@ -153,7 +155,7 @@ export default function CartDrawer({
                   onClick={onCheckout}
                   data-testid="button-checkout"
                 >
-                  Proceed to Checkout
+                  {t('checkout')}
                 </Button>
               </SheetFooter>
             </div>

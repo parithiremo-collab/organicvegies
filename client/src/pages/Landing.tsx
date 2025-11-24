@@ -1,9 +1,17 @@
 import { Button } from "@/components/ui/button";
 import { Leaf } from "lucide-react";
+import { useTranslation } from "@/i18n/useTranslation";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 export default function Landing() {
+  const { t } = useTranslation();
+  
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-green-50 to-white dark:from-green-950 dark:to-slate-900 px-4">
+      <div className="absolute top-4 right-4">
+        <LanguageSwitcher />
+      </div>
+      
       <div className="max-w-2xl text-center">
         <div className="flex justify-center mb-8">
           <div className="p-4 bg-primary/10 rounded-lg">
@@ -16,14 +24,13 @@ export default function Landing() {
         </h1>
         
         <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
-          Discover 100% certified organic produce delivered fresh to your doorstep. 
-          We bring the farm directly to your kitchen.
+          {t('heroSubtitle')}
         </p>
 
         <div className="space-y-4 mb-12">
           <div className="flex items-center justify-center gap-3 text-muted-foreground">
             <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-semibold text-primary">✓</div>
-            <span>Farm-fresh organic vegetables & fruits</span>
+            <span>{t('certified')}</span>
           </div>
           <div className="flex items-center justify-center gap-3 text-muted-foreground">
             <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-semibold text-primary">✓</div>
@@ -41,7 +48,7 @@ export default function Landing() {
           className="px-8 py-6 text-lg"
           data-testid="button-login"
         >
-          Sign in with Replit
+          {t('signInWithReplit')}
         </Button>
       </div>
     </div>
