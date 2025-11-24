@@ -249,8 +249,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create checkout session
   app.post("/api/checkout", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const { deliveryAddress, deliverySlot, deliveryFee = 0, paymentMethod = 'card' } = req.body;
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+      
+      const { deliveryAddress, deliverySlot, deliveryFee = 0, paymentMethod = 'card' } = req.body || {};
 
       // Validate required fields
       if (!deliveryAddress) {
@@ -282,12 +286,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         quantity: cartItems.quantity,
       }).from(cartItems).where(eq(cartItems.userId, userId));
 
-      if (cartData.length === 0) {
+      if (!cartData || cartData.length === 0) {
         return res.status(400).json({ error: "Cart is empty" });
       }
 
       // Fetch product details
-      const productIds = cartData.map(item => item.productId);
+      const productIds = cartData.map(item => item?.productId).filter(Boolean);
       if (productIds.length === 0) {
         return res.status(400).json({ error: "No items in cart" });
       }
@@ -295,48 +299,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const productDetails = await db.select().from(products)
         .where(or(...productIds.map(id => eq(products.id, id) as any)));
 
+      if (!productDetails || productDetails.length === 0) {
+        return res.status(400).json({ error: "Products not found" });
+      }
+
       let totalAmount = 0;
       const orderItemsData = [];
 
       for (const cartItem of cartData) {
-        const product = productDetails.find(p => p.id === cartItem.productId);
+        if (!cartItem?.productId || !cartItem?.quantity) {
+          continue;
+        }
+        
+        const product = productDetails.find(p => p?.id === cartItem.productId);
         if (!product) {
           return res.status(400).json({ error: "Product not found" });
         }
-        const itemTotal = parseFloat(product.price) * cartItem.quantity;
+        
+        const itemPrice = parseFloat(product?.price?.toString() || '0');
+        if (isNaN(itemPrice) || itemPrice < 0) {
+          return res.status(400).json({ error: "Invalid product price" });
+        }
+        
+        const itemTotal = itemPrice * cartItem.quantity;
         totalAmount += itemTotal;
+        
         orderItemsData.push({
           productId: product.id,
-          productName: product.name,
-          productImage: product.imageUrl,
+          productName: product.name || 'Unknown Product',
+          productImage: product.imageUrl || '',
           price: product.price,
           quantity: cartItem.quantity,
-          weight: product.weight,
+          weight: product.weight || '',
         });
       }
 
+      if (orderItemsData.length === 0) {
+        return res.status(400).json({ error: "No valid items to checkout" });
+      }
+
       // Add delivery fee to total
-      totalAmount += parseFloat(deliveryFee.toString()) || 0;
+      const deliveryFeeNum = parseFloat(deliveryFee?.toString() || '0');
+      if (isNaN(deliveryFeeNum) || deliveryFeeNum < 0) {
+        return res.status(400).json({ error: "Invalid delivery fee" });
+      }
+      totalAmount += deliveryFeeNum;
 
       // Create order
+      if (totalAmount <= 0) {
+        return res.status(400).json({ error: "Invalid order amount" });
+      }
+      
       const orderData = {
         userId,
         totalAmount: totalAmount.toString(),
         status: "pending" as const,
         paymentStatus: "pending" as const,
-        deliveryAddressLine1: deliveryAddress.line1,
-        deliveryAddressLine2: deliveryAddress.line2 || null,
-        deliveryCity: deliveryAddress.city,
-        deliveryState: deliveryAddress.state,
-        deliveryPincode: deliveryAddress.pincode,
-        deliverySlot,
+        deliveryAddressLine1: deliveryAddress?.line1 || '',
+        deliveryAddressLine2: deliveryAddress?.line2 || null,
+        deliveryCity: deliveryAddress?.city || '',
+        deliveryState: deliveryAddress?.state || '',
+        deliveryPincode: deliveryAddress?.pincode || '',
+        deliverySlot: deliverySlot || 'morning',
         paymentMethod: paymentMethod || 'card',
       };
 
-      const [newOrder] = await db.insert(orders).values(orderData).returning();
+      const orderResult = await db.insert(orders).values(orderData).returning();
+      if (!orderResult || orderResult.length === 0) {
+        return res.status(500).json({ error: "Failed to create order" });
+      }
+      
+      const newOrder = orderResult[0];
+      if (!newOrder?.id) {
+        return res.status(500).json({ error: "Invalid order created" });
+      }
 
       // Add order items
+      if (!orderItemsData || orderItemsData.length === 0) {
+        // Clean up order if no items
+        await db.delete(orders).where(eq(orders.id, newOrder.id));
+        return res.status(400).json({ error: "No items to add to order" });
+      }
+      
       for (const item of orderItemsData) {
+        if (!item?.productId || !item?.productName) {
+          continue;
+        }
         await db.insert(orderItems).values({
           orderId: newOrder.id,
           ...item,
@@ -345,68 +393,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Handle Razorpay UPI or Stripe Card
       if (paymentMethod === 'upi') {
-        // Create Razorpay order for UPI
-        const razorpay = getRazorpayClient();
-        const razorpayOrder = await razorpay.createOrder(
-          totalAmount,
-          newOrder.id,
-          `FreshHarvest Order ${newOrder.id}`
-        );
+        try {
+          // Create Razorpay order for UPI
+          const razorpay = getRazorpayClient();
+          if (!razorpay) {
+            throw new Error("Razorpay client not initialized");
+          }
+          
+          const razorpayOrder = await razorpay.createOrder(
+            totalAmount,
+            newOrder.id,
+            `FreshHarvest Order ${newOrder.id}`
+          );
 
-        // Update order with Razorpay order ID
-        await db.update(orders)
-          .set({ razorpayOrderId: razorpayOrder.id })
-          .where(eq(orders.id, newOrder.id));
+          if (!razorpayOrder?.id) {
+            throw new Error("Failed to create Razorpay order");
+          }
 
-        // Clear cart
-        await db.delete(cartItems).where(eq(cartItems.userId, userId));
+          // Update order with Razorpay order ID
+          await db.update(orders)
+            .set({ razorpayOrderId: razorpayOrder.id })
+            .where(eq(orders.id, newOrder.id));
 
-        res.json({
-          orderId: newOrder.id,
-          razorpayOrderId: razorpayOrder.id,
-          amount: totalAmount,
-          currency: 'INR',
-          paymentMethod: 'upi',
-        });
-      } else {
-        // Create Stripe checkout session for card
-        const stripe = await getUncachableStripeClient();
-        console.log(`Creating Stripe session for order ${newOrder.id}, amount: ${totalAmount}, paymentMethod: ${paymentMethod}`);
-        
-        const session = await stripe.checkout.sessions.create({
-          payment_method_types: ['card'],
-          line_items: [{
-            price_data: {
-              currency: 'inr',
-              product_data: {
-                name: 'FreshHarvest Order',
-                description: `Order #${newOrder.id}`,
-              },
-              unit_amount: Math.round(totalAmount * 100),
-            },
-            quantity: 1,
-          }],
-          mode: 'payment',
-          success_url: `${req.protocol}://${req.get('host')}/orders/${newOrder.id}?success=true`,
-          cancel_url: `${req.protocol}://${req.get('host')}/checkout?cancelled=true`,
-          metadata: {
+          // Clear cart
+          await db.delete(cartItems).where(eq(cartItems.userId, userId));
+
+          res.json({
             orderId: newOrder.id,
-            userId,
-            paymentMethod,
-          },
-        });
-        
-        console.log(`Stripe session created: ${session.id}`);
+            razorpayOrderId: razorpayOrder.id,
+            amount: totalAmount,
+            currency: 'INR',
+            paymentMethod: 'upi',
+          });
+        } catch (razorpayError: any) {
+          console.error("Razorpay error:", razorpayError);
+          return res.status(500).json({ error: "Failed to initialize UPI payment" });
+        }
+      } else if (paymentMethod === 'card') {
+        try {
+          // Create Stripe checkout session for card
+          const stripe = await getUncachableStripeClient();
+          if (!stripe) {
+            throw new Error("Stripe client not initialized");
+          }
+          
+          console.log(`Creating Stripe session for order ${newOrder.id}, amount: ${totalAmount}, paymentMethod: ${paymentMethod}`);
+          
+          const sessionAmount = Math.round(totalAmount * 100);
+          if (sessionAmount <= 0) {
+            throw new Error("Invalid session amount");
+          }
+          
+          const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [{
+              price_data: {
+                currency: 'inr',
+                product_data: {
+                  name: 'FreshHarvest Order',
+                  description: `Order #${newOrder.id}`,
+                },
+                unit_amount: sessionAmount,
+              },
+              quantity: 1,
+            }],
+            mode: 'payment',
+            success_url: `${req.protocol || 'https'}://${req.get('host')}/orders/${newOrder.id}?success=true`,
+            cancel_url: `${req.protocol || 'https'}://${req.get('host')}/checkout?cancelled=true`,
+            metadata: {
+              orderId: newOrder.id,
+              userId,
+              paymentMethod: paymentMethod || 'card',
+            },
+          });
+          
+          if (!session?.id) {
+            throw new Error("Failed to create Stripe session");
+          }
+          
+          console.log(`Stripe session created: ${session.id}`);
 
-        // Update order with Stripe session ID
-        await db.update(orders)
-          .set({ stripeSessionId: session.id })
-          .where(eq(orders.id, newOrder.id));
+          // Update order with Stripe session ID
+          await db.update(orders)
+            .set({ stripeSessionId: session.id })
+            .where(eq(orders.id, newOrder.id));
 
-        // Clear cart
-        await db.delete(cartItems).where(eq(cartItems.userId, userId));
+          // Clear cart
+          await db.delete(cartItems).where(eq(cartItems.userId, userId));
 
-        res.json({ sessionId: session.id, orderId: newOrder.id, paymentMethod: 'card' });
+          res.json({ 
+            orderId: newOrder.id, 
+            sessionId: session.id, 
+            paymentMethod: 'card' 
+          });
+        } catch (stripeError: any) {
+          console.error("Stripe error:", stripeError);
+          return res.status(500).json({ error: "Failed to initialize card payment" });
+        }
+      } else {
+        return res.status(400).json({ error: "Invalid payment method selected" });
       }
     } catch (error: any) {
       console.error("Error creating checkout session:", error);

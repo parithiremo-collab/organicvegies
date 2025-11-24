@@ -125,15 +125,31 @@ export default function Checkout() {
         }),
       });
       
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to create checkout");
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        throw new Error("Invalid server response");
       }
+      
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to create checkout");
+      }
+      
+      if (!data) {
+        throw new Error("No data received from server");
+      }
+      
       return data;
     },
     onSuccess: async (data) => {
       try {
-        if (data.paymentMethod === 'upi') {
+        if (!data?.orderId) {
+          throw new Error("No order ID received");
+        }
+        
+        if (data?.paymentMethod === 'upi') {
           setCurrentOrderId(data.orderId);
           setPaymentStatus('processing');
 
@@ -142,9 +158,16 @@ export default function Checkout() {
             if (!qrRes.ok) {
               throw new Error("Failed to generate QR code. Please try again.");
             }
-            const qrData = await qrRes.json();
             
-            if (!qrData.upiLink) {
+            let qrData: any = null;
+            try {
+              qrData = await qrRes.json();
+            } catch (parseError) {
+              console.error('QR response parse error:', parseError);
+              throw new Error("Invalid QR code response format");
+            }
+            
+            if (!qrData || !qrData.upiLink) {
               throw new Error("Invalid QR code data received");
             }
             
@@ -175,32 +198,50 @@ export default function Checkout() {
             setPaymentStatus('failed');
             throw qrError;
           }
-        } else {
+        } else if (data?.paymentMethod === 'card') {
           try {
+            if (!data?.sessionId) {
+              throw new Error("No Stripe session ID received");
+            }
+            
             const keyRes = await fetch("/api/stripe/publishable-key");
             if (!keyRes.ok) {
               throw new Error("Failed to load Stripe. Please try again.");
             }
-            const { publishableKey } = await keyRes.json();
-
+            
+            let keyData: any = null;
+            try {
+              keyData = await keyRes.json();
+            } catch (parseError) {
+              console.error('Stripe key response parse error:', parseError);
+              throw new Error("Invalid Stripe key response format");
+            }
+            
+            const publishableKey = keyData?.publishableKey;
             if (!publishableKey) {
               throw new Error("Stripe configuration missing");
             }
 
-            if (!window.Stripe) {
+            if (typeof window === 'undefined' || !window.Stripe) {
               throw new Error("Stripe.js is not loaded. Please refresh and try again.");
             }
 
             const stripe = window.Stripe(publishableKey);
+            if (!stripe) {
+              throw new Error("Failed to initialize Stripe");
+            }
+            
             const result = await stripe.redirectToCheckout({ sessionId: data.sessionId });
             
             if (result?.error) {
-              throw new Error(result.error.message || "Stripe redirect failed");
+              throw new Error(result.error?.message || "Stripe redirect failed");
             }
           } catch (stripeError: any) {
             setPaymentStatus('failed');
             throw stripeError;
           }
+        } else {
+          throw new Error("Invalid payment method");
         }
       } catch (error: any) {
         setPaymentStatus('failed');
