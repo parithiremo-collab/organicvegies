@@ -22,11 +22,8 @@ interface UserData {
 }
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
-  const { data: user } = useQuery<UserData>({
-    queryKey: ["/api/auth/user"],
-    enabled: isAuthenticated,
-  });
+  const { user, isLoading } = useAuth();
+  const isAuthenticated = !!user;
 
   if (isLoading) {
     return (
@@ -38,7 +35,7 @@ function Router() {
 
   return (
     <Switch>
-      {isLoading || !isAuthenticated ? (
+      {!isAuthenticated ? (
         <>
           <Route path="/" component={UnifiedLogin} />
           <Route component={NotFound} />
