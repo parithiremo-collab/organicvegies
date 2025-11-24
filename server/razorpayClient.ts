@@ -84,8 +84,8 @@ export class RazorpayClient {
     // Generate a UPI string for intent-based payment
     // Format: upi://pay?pa=merchant_upi&pn=Merchant%20Name&am=amount&tn=description&tr=reference_id
     const upiParams = new URLSearchParams({
-      pa: 'freshharvest@razorpay', // UPI ID (replace with actual)
-      pn: 'FreshHarvest',
+      pa: 'ulavarangadi@razorpay', // UPI ID (replace with actual)
+      pn: 'Ulavar Angadi',
       am: amount.toString(),
       tn: `Order ${orderId}`,
       tr: orderId,

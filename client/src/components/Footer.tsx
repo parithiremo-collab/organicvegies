@@ -32,12 +32,12 @@ export default function Footer({ onNewsletterSubmit }: FooterProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           <div>
-            <h3 className="font-accent text-xl font-bold text-primary mb-4">FreshHarvest</h3>
+            <h3 className="font-accent text-xl font-bold text-primary mb-4">Ulavar Angadi</h3>
             <p className="text-sm text-muted-foreground mb-4">
               {isCustomer && "Fresh organic produce delivered directly from certified farmers to your doorstep."}
               {isSeller && "Sell your certified organic produce to thousands of customers nationwide."}
               {isAgent && "Distribute organic products and earn competitive commissions."}
-              {isAdmin && "Manage and moderate the FreshHarvest marketplace platform."}
+              {isAdmin && "Manage and moderate the Ulavar Angadi marketplace platform."}
             </p>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <CheckCircle2 className="h-4 w-4 text-primary" />
@@ -62,7 +62,7 @@ export default function Footer({ onNewsletterSubmit }: FooterProps) {
                   </li>
                   <li>
                     <span className="text-muted-foreground px-2 py-1 inline-block" data-testid="text-contact">
-                      Contact: support@freshharvest.com
+                      Contact: support@ulavarangadi.com
                     </span>
                   </li>
                   <li>
@@ -86,7 +86,7 @@ export default function Footer({ onNewsletterSubmit }: FooterProps) {
                   </li>
                   <li>
                     <span className="text-muted-foreground px-2 py-1 inline-block" data-testid="text-seller-email">
-                      farmers@freshharvest.com
+                      farmers@ulavarangadi.com
                     </span>
                   </li>
                 </>
@@ -105,7 +105,7 @@ export default function Footer({ onNewsletterSubmit }: FooterProps) {
                   </li>
                   <li>
                     <span className="text-muted-foreground px-2 py-1 inline-block" data-testid="text-agent-email">
-                      agents@freshharvest.com
+                      agents@ulavarangadi.com
                     </span>
                   </li>
                 </>

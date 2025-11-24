@@ -20,7 +20,7 @@ export default function Landing() {
         </div>
         
         <h1 className="font-accent text-5xl md:text-6xl font-bold mb-4 text-foreground">
-          FreshHarvest
+          Ulavar Angadi
         </h1>
         
         <p className="text-xl text-muted-foreground mb-8 leading-relaxed">

@@ -117,7 +117,7 @@ export const translations: Record<Language, Translations> = {
     removed: 'Removed',
     certified: '100% Certified',
     // Login page translations
-    loginPageTitle: 'FreshHarvest',
+    loginPageTitle: 'Ulavar Angadi',
     loginPageSubtitle: 'Join India\'s most trusted organic marketplace. Choose your role and get started.',
     roleCustomer: 'Customer',
     roleCustomerDesc: 'Browse and purchase certified organic products with UPI/Card payments',

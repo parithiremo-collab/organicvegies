@@ -145,7 +145,7 @@ export default function FarmerDashboard() {
             <div className="mb-2">
               <span className="inline-block px-3 py-1 bg-green-200 dark:bg-green-900 text-green-800 dark:text-green-100 rounded-full text-sm font-semibold">Get Started</span>
             </div>
-            <h2 className="text-4xl font-bold mb-3 text-green-900 dark:text-green-50">Welcome to FreshHarvest Farm</h2>
+            <h2 className="text-4xl font-bold mb-3 text-green-900 dark:text-green-50">Welcome to Ulavar Angadi</h2>
             <p className="text-lg text-green-700 dark:text-green-200 mb-8">
               Create your farm profile and start selling organic products directly to customers. Build your brand and grow your business today.
             </p>

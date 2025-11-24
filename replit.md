@@ -1,7 +1,7 @@
-# FreshHarvest - Organic Marketplace Platform
+# Ulavar Angadi - Organic Marketplace Platform
 
 ## Overview
-FreshHarvest is a comprehensive organic marketplace platform designed to connect farmers, agents, and customers. It features a 5-role ecosystem (Customer, Farmer, Agent, Admin, SuperAdmin), multi-language support, and dual payment integration (Stripe for card payments and Razorpay for UPI). The platform aims to provide a seamless and secure experience for buying and selling organic products.
+Ulavar Angadi is a comprehensive organic marketplace platform designed to connect farmers, agents, and customers. It features a 5-role ecosystem (Customer, Farmer, Agent, Admin, SuperAdmin), multi-language support, and dual payment integration (Stripe for card payments and Razorpay for UPI). The platform aims to provide a seamless and secure experience for buying and selling organic products.
 
 ## User Preferences
 I prefer detailed explanations.
@@ -35,6 +35,15 @@ Ask before making major changes.
 - **Product Management:** Products include `farmerId`, `isApproved` (for admin workflow), and `stock` for inventory.
 - **Order Processing:** Supports both UPI and card payments, with secure payment verification processes.
 - **Test Users:** Auto-created test users for all roles to facilitate development and testing.
+
+## Recent Branding Update (Nov 24, 2025)
+- **Rebranded from FreshHarvest to Ulavar Angadi** ✅
+  - Updated logo/name across all pages (Header, Landing, Footer, Dashboards)
+  - Updated email addresses: support@ulavarangadi.com, farmers@ulavarangadi.com, agents@ulavarangadi.com
+  - Updated payment gateway integration: UPI handle changed to ulavarangadi@razorpay
+  - Updated order descriptions and page titles
+  - Updated translations (English login page title now shows "Ulavar Angadi")
+  - Updated HTML title and meta description
 
 ## Latest Session Improvements (Nov 24, 2025)
 

@@ -429,7 +429,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const razorpayOrder = await razorpay.createOrder(
             totalAmount,
             newOrder.id,
-            `FreshHarvest Order ${newOrder.id}`
+            `Ulavar Angadi Order ${newOrder.id}`
           );
 
           if (!razorpayOrder?.id) {
@@ -476,7 +476,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               price_data: {
                 currency: 'inr',
                 product_data: {
-                  name: 'FreshHarvest Order',
+                  name: 'Ulavar Angadi Order',
                   description: `Order #${newOrder.id}`,
                 },
                 unit_amount: sessionAmount,
@@ -555,7 +555,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const razorpayOrder = await razorpay.createOrder(
           amount,
           orderId,
-          `FreshHarvest Order ${orderId}`
+          `Ulavar Angadi Order ${orderId}`
         );
 
         // Update order with Razorpay order ID

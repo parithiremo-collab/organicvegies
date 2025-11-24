@@ -82,7 +82,7 @@ export default function Header({
             </Sheet>
 
             <Link href="/" className="flex items-center gap-2" data-testid="link-logo">
-              <div className="font-accent text-2xl font-bold text-primary">FreshHarvest</div>
+              <div className="font-accent text-2xl font-bold text-primary">Ulavar Angadi</div>
             </Link>
 
             <nav className="hidden lg:flex items-center gap-6">
