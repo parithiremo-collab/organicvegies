@@ -12,12 +12,6 @@ import type { Product } from "@shared/schema";
 import { Copy, CheckCircle, AlertCircle, Loader2, Info } from "lucide-react";
 import QRCode from 'qrcode';
 
-declare global {
-  interface Window {
-    Stripe: any;
-  }
-}
-
 interface CartItemData extends Product {
   cartItemId: string;
   quantity: number;
@@ -34,7 +28,7 @@ export default function Checkout() {
     pincode: '',
   });
   const [deliverySlot, setDeliverySlot] = useState('morning');
-  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card'>('upi');
+  const paymentMethod = 'upi';
   const [upiLink, setUpiLink] = useState<string | null>(null);
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
@@ -198,50 +192,6 @@ export default function Checkout() {
             setPaymentStatus('failed');
             throw qrError;
           }
-        } else if (data?.paymentMethod === 'card') {
-          try {
-            if (!data?.sessionId) {
-              throw new Error("No Stripe session ID received");
-            }
-            
-            const keyRes = await fetch("/api/stripe/publishable-key");
-            if (!keyRes.ok) {
-              throw new Error("Failed to load Stripe. Please try again.");
-            }
-            
-            let keyData: any = null;
-            try {
-              keyData = await keyRes.json();
-            } catch (parseError) {
-              console.error('Stripe key response parse error:', parseError);
-              throw new Error("Invalid Stripe key response format");
-            }
-            
-            const publishableKey = keyData?.publishableKey;
-            if (!publishableKey) {
-              throw new Error("Stripe configuration missing");
-            }
-
-            if (typeof window === 'undefined' || !window.Stripe) {
-              throw new Error("Stripe.js is not loaded. Please refresh and try again.");
-            }
-
-            const stripe = window.Stripe(publishableKey);
-            if (!stripe) {
-              throw new Error("Failed to initialize Stripe");
-            }
-            
-            const result = await stripe.redirectToCheckout({ sessionId: data.sessionId });
-            
-            if (result?.error) {
-              throw new Error(result.error?.message || "Stripe redirect failed");
-            }
-          } catch (stripeError: any) {
-            setPaymentStatus('failed');
-            throw stripeError;
-          }
-        } else {
-          throw new Error("Invalid payment method");
         }
       } catch (error: any) {
         setPaymentStatus('failed');
@@ -427,32 +377,13 @@ export default function Checkout() {
               </Card>
 
               {/* Payment Method */}
-              <Card className="p-6">
+              <Card className="p-6 bg-blue-50 dark:bg-blue-950">
                 <h2 className="text-xl font-semibold mb-4">Payment Method</h2>
-                <div className="flex gap-4 flex-wrap">
-                  <Button
-                    variant={paymentMethod === 'upi' ? "default" : "outline"}
-                    onClick={() => {
-                      setPaymentMethod('upi');
-                      setPaymentStatus('idle');
-                      setUpiLink(null);
-                    }}
-                    data-testid="button-payment-upi"
-                    className="flex-1"
-                  >
-                    UPI (Razorpay)
-                  </Button>
-                  <Button
-                    variant={paymentMethod === 'card' ? "default" : "outline"}
-                    onClick={() => {
-                      setPaymentMethod('card');
-                      setPaymentStatus('idle');
-                    }}
-                    data-testid="button-payment-card"
-                    className="flex-1"
-                  >
-                    Credit/Debit Card (Stripe)
-                  </Button>
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                    UPI Payment via Razorpay (All UPI apps supported)
+                  </p>
                 </div>
               </Card>
 
@@ -578,7 +509,7 @@ export default function Checkout() {
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Processing...
                     </>
-                  ) : `Proceed to ${paymentMethod === 'upi' ? 'UPI' : 'Card'} Payment`}
+                  ) : 'Proceed to UPI Payment'}
                 </Button>
               </Card>
             </div>

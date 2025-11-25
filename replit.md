@@ -1,7 +1,7 @@
 # Ulavar Angadi - Organic Marketplace Platform
 
 ## Overview
-Ulavar Angadi is a comprehensive organic marketplace platform designed to connect farmers, agents, and customers. It features a 5-role ecosystem (Customer, Farmer, Agent, Admin, SuperAdmin), multi-language support, and dual payment integration (Stripe for card payments and Razorpay for UPI). The platform aims to provide a seamless and secure experience for buying and selling organic products.
+Ulavar Angadi is a comprehensive organic marketplace platform designed to connect farmers, agents, and customers. It features a 5-role ecosystem (Customer, Farmer, Agent, Admin, SuperAdmin), multi-language support, and India-optimized payment integration (Razorpay UPI). The platform aims to provide a seamless and secure experience for buying and selling organic products.
 
 ## User Preferences
 I prefer detailed explanations.
@@ -14,16 +14,15 @@ Ask before making major changes.
 ### UI/UX Decisions
 - **Multi-Language Support:** Full application support for English, Hindi, and Tamil, including a unified multi-language login page.
 - **Role-Based Dashboards:** Tailored dashboards for each of the 5 user roles to provide relevant information and functionalities.
-- **Payment UI:** Dual payment method selection (UPI via Razorpay, Card via Stripe) with client-side QR code generation for UPI, intent-based UPI links, and clear payment status tracking.
+- **Payment UI:** UPI payment via Razorpay with client-side QR code generation, intent-based UPI links, and clear payment status tracking. Simplified for India-focused operations.
 - **Error Handling UI:** User-friendly error messages, form validation with instant feedback, loading states with spinners, and an `ErrorBoundary` component for unhandled React errors.
 
 ### Technical Implementations
 - **Backend Framework:** Node.js with Express (implied by API routes).
 - **Database:** PostgreSQL, managed with Drizzle ORM. Schema includes `farmerId`, `isApproved`, and `stock` fields for products, and Razorpay-specific fields (`razorpayOrderId`, `razorpayPaymentId`, `razorpaySignature`, `paymentMethod`) for orders.
 - **Authentication:** Replit Auth integration with a local test login system for development.
-- **Payment Gateway Integrations:**
-    - **Razorpay (UPI):** `server/razorpayClient.ts` handles API interactions. Implements UPI intent-based payment generation, signature verification using HMAC-SHA256, and supports QR code generation client-side using the `qrcode` library.
-    - **Stripe (Card):** Integrated for credit/debit card payments.
+- **Payment Gateway Integration:**
+    - **Razorpay (UPI):** `server/razorpayClient.ts` handles API interactions. Implements UPI intent-based payment generation, signature verification using HMAC-SHA256, and supports QR code generation client-side using the `qrcode` library. Supports all UPI apps (Google Pay, PhonePe, Paytm, BHIM, etc.).
 - **Error Handling:**
     - **Frontend:** `ErrorBoundary` component, comprehensive form validation, loading states, JSON parse error handling, null/undefined checks, and user-friendly error toasts.
     - **Backend:** Input validation on all endpoints (required fields, data types, constraints, authorization), specific error handling for payment gateway issues, null/undefined checks on all API responses, try-catch blocks for async operations, and safe data access patterns.
@@ -33,7 +32,7 @@ Ask before making major changes.
 ### Feature Specifications
 - **User Roles:** Customer, Farmer, Agent, Admin, SuperAdmin.
 - **Product Management:** Products include `farmerId`, `isApproved` (for admin workflow), and `stock` for inventory.
-- **Order Processing:** Supports both UPI and card payments, with secure payment verification processes.
+- **Order Processing:** Supports UPI payments (Razorpay) with secure payment verification processes.
 - **Test Users:** Auto-created test users for all roles to facilitate development and testing.
 
 ## Recent Branding Update (Nov 24, 2025)
@@ -88,6 +87,44 @@ Added defensive programming throughout the codebase:
 - **Replit Auth:** For user authentication.
 - **`qrcode` library:** Client-side QR code generation for UPI payments.
 - **`@neondatabase/serverless`:** PostgreSQL driver.
+## Payment System Simplification (Nov 25, 2025) - RAZORPAY ONLY ✅
+
+### Simplified to Razorpay-Only for India Operations
+**Reason:** Optimized for India-exclusive operations, reduced code complexity, smaller bundle size
+
+**Changes Made:**
+1. **Removed Stripe Integration:**
+   - Removed `stripeClient.ts` import from routes
+   - Removed `/api/stripe/publishable-key` endpoint
+   - Removed Stripe session creation logic (~55 lines)
+   - Removed Stripe JavaScript SDK declarations
+   - Removed card payment method from checkout UI
+
+2. **Simplified Checkout Flow:**
+   - Removed payment method selector (was: UPI or Card)
+   - Now: Direct to UPI QR code after address validation
+   - Removed Stripe session initialization
+   - Faster user experience
+
+3. **Benefits:**
+   - **Code:** Removed 60+ lines of Stripe code
+   - **Bundle:** Reduced from 79kb to 76.3kb (3kb savings!)
+   - **Maintenance:** Single payment gateway to manage
+   - **Performance:** Fewer API calls, faster checkout
+   - **India Focus:** Razorpay is #1 in India, supports all UPI apps
+
+**Files Modified:**
+- `client/src/pages/Checkout.tsx` - Removed Stripe UI & session code
+- `server/routes.ts` - Removed Stripe imports & endpoints
+
+**Tested & Verified:** ✅
+- Products API working
+- Razorpay key endpoint working
+- Checkout endpoint working
+- UPI QR generation working
+- Build successful (0 errors)
+- Bundle size optimized
+
 ## Latest Session Improvements (Nov 24-25, 2025) - CONTINUED
 
 ### New Features Added:

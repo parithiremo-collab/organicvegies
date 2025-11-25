@@ -7,7 +7,6 @@ import { setupAuth, isAuthenticated, isReplitAuthEnabled } from "./replitAuth";
 import { setupTestAuth, setupSessionMiddleware } from "./testAuth";
 import { storage } from "./storage";
 import { insertCartItemSchema, insertOrderSchema, insertOrderItemSchema, insertFarmerProfileSchema, insertAgentProfileSchema, insertAdminProfileSchema, insertSuperAdminProfileSchema, insertWishlistSchema, insertReviewSchema } from "@shared/schema";
-import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { getRazorpayClient } from "./razorpayClient";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -246,17 +245,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get Stripe publishable key
-  app.get("/api/stripe/publishable-key", async (req, res) => {
-    try {
-      const key = await getStripePublishableKey();
-      res.json({ publishableKey: key });
-    } catch (error) {
-      console.error("Error fetching Stripe key:", error);
-      res.status(500).json({ error: "Failed to fetch Stripe key" });
-    }
-  });
-
   // Create checkout session
   app.post("/api/checkout", isAuthenticated, async (req: any, res) => {
     try {
@@ -454,67 +442,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (razorpayError: any) {
           console.error("Razorpay error:", razorpayError);
           return res.status(500).json({ error: "Failed to initialize UPI payment" });
-        }
-      } else if (paymentMethod === 'card') {
-        try {
-          // Create Stripe checkout session for card
-          const stripe = await getUncachableStripeClient();
-          if (!stripe) {
-            throw new Error("Stripe client not initialized");
-          }
-          
-          console.log(`Creating Stripe session for order ${newOrder.id}, amount: ${totalAmount}, paymentMethod: ${paymentMethod}`);
-          
-          const sessionAmount = Math.round(totalAmount * 100);
-          if (sessionAmount <= 0) {
-            throw new Error("Invalid session amount");
-          }
-          
-          const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            line_items: [{
-              price_data: {
-                currency: 'inr',
-                product_data: {
-                  name: 'Ulavar Angadi Order',
-                  description: `Order #${newOrder.id}`,
-                },
-                unit_amount: sessionAmount,
-              },
-              quantity: 1,
-            }],
-            mode: 'payment',
-            success_url: `${req.protocol || 'https'}://${req.get('host')}/orders/${newOrder.id}?success=true`,
-            cancel_url: `${req.protocol || 'https'}://${req.get('host')}/checkout?cancelled=true`,
-            metadata: {
-              orderId: newOrder.id,
-              userId,
-              paymentMethod: paymentMethod || 'card',
-            },
-          });
-          
-          if (!session?.id) {
-            throw new Error("Failed to create Stripe session");
-          }
-          
-          console.log(`Stripe session created: ${session.id}`);
-
-          // Update order with Stripe session ID
-          await db.update(orders)
-            .set({ stripeSessionId: session.id })
-            .where(eq(orders.id, newOrder.id));
-
-          // Clear cart
-          await db.delete(cartItems).where(eq(cartItems.userId, userId));
-
-          res.json({ 
-            orderId: newOrder.id, 
-            sessionId: session.id, 
-            paymentMethod: 'card' 
-          });
-        } catch (stripeError: any) {
-          console.error("Stripe error:", stripeError);
-          return res.status(500).json({ error: "Failed to initialize card payment" });
         }
       } else {
         return res.status(400).json({ error: "Invalid payment method selected" });
