@@ -1244,6 +1244,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========== FARMER PROFILE ROUTES ==========
+
+  // Get farmer profile with details
+  app.get("/api/farmers/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [farmer] = await db.select()
+        .from(farmerProfiles)
+        .where(eq(farmerProfiles.userId, id));
+      
+      if (!farmer) {
+        return res.status(404).json({ error: "Farmer not found" });
+      }
+      
+      res.json({
+        ...farmer,
+        firstName: (await db.select({ firstName: users.firstName })
+          .from(users)
+          .where(eq(users.id, id)))[0]?.firstName || ''
+      });
+    } catch (error) {
+      console.error("Error fetching farmer profile:", error);
+      res.status(500).json({ error: "Failed to fetch farmer profile" });
+    }
+  });
+
+  // ========== LOYALTY POINTS ROUTES ==========
+
+  // Get loyalty points
+  app.get("/api/loyalty/points", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Calculate points based on completed orders
+      const completedOrders = await db.select({ totalAmount: orders.totalAmount })
+        .from(orders)
+        .where(and(
+          eq(orders.userId, userId),
+          eq(orders.status, "delivered")
+        ));
+      
+      const totalSpent = completedOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+      const pointsEarned = Math.floor(totalSpent / 10); // 1 point per ₹10
+      
+      res.json({
+        totalPoints: pointsEarned,
+        balance: pointsEarned,
+        tier: pointsEarned < 100 ? "Bronze" : pointsEarned < 500 ? "Silver" : "Gold",
+        rewardsHistory: []
+      });
+    } catch (error) {
+      console.error("Error fetching loyalty points:", error);
+      res.status(500).json({ error: "Failed to fetch loyalty points" });
+    }
+  });
+
   // ========== WISHLIST ROUTES ==========
   
   // Get user's wishlist

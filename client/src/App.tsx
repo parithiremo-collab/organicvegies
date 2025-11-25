@@ -11,6 +11,9 @@ import Home from "@/pages/Home";
 import Shop from "@/pages/Shop";
 import ProductDetail from "@/pages/ProductDetail";
 import Wishlist from "@/pages/Wishlist";
+import FarmerProfile from "@/pages/FarmerProfile";
+import OrderTracking from "@/pages/OrderTracking";
+import LoyaltyPoints from "@/pages/LoyaltyPoints";
 import UnifiedLogin from "@/pages/UnifiedLogin";
 import Checkout from "@/pages/Checkout";
 import Orders from "@/pages/Orders";
@@ -72,6 +75,9 @@ function Router() {
               <Route path="/shop" component={Shop} />
               <Route path="/products/:id" component={ProductDetail} />
               <Route path="/wishlist" component={Wishlist} />
+              <Route path="/farmers/:id" component={FarmerProfile} />
+              <Route path="/track/:id" component={OrderTracking} />
+              <Route path="/loyalty" component={LoyaltyPoints} />
               <Route path="/checkout" component={Checkout} />
               <Route path="/orders" component={Orders} />
               <Route path="/orders/:id" component={OrderDetail} />
