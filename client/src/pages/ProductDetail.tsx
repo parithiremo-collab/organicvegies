@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
 import ReviewsSection from "@/components/ReviewsSection";
+import ProductDetailsModal from "@/components/ProductDetailsModal";
 import WishlistButton from "@/components/WishlistButton";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import { Star, ShoppingCart, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Loader } from "lucide-react";
+import ProductCard from "@/components/ProductCard";
 
 export default function ProductDetail() {
   const [location, navigate] = useLocation();
@@ -22,6 +24,7 @@ export default function ProductDetail() {
   const { toast } = useToast();
   const [cartOpen, setCartOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
   const { data: product, isLoading } = useQuery({
     queryKey: ["/api/products", productId],

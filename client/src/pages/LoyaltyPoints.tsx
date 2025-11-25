@@ -1,14 +1,18 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Gift, TrendingUp, Zap } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Gift, TrendingUp, Zap } from "lucide-react";
 import { Loader } from "lucide-react";
 
 export default function LoyaltyPoints() {
+  const [selectedReward, setSelectedReward] = useState<any>(null);
+
   const { data: points, isLoading } = useQuery({
     queryKey: ["/api/loyalty/points"],
     queryFn: () =>
@@ -21,9 +25,9 @@ export default function LoyaltyPoints() {
   });
 
   const rewards = [
-    { points: 100, reward: "₹10 Discount", icon: Gift },
-    { points: 500, reward: "₹60 Discount", icon: TrendingUp },
-    { points: 1000, reward: "Free Delivery (1 month)", icon: Zap },
+    { id: 1, points: 100, reward: "₹10 Discount", icon: Gift, description: "Get ₹10 off on your next purchase of any organic products" },
+    { id: 2, points: 500, reward: "₹60 Discount", icon: TrendingUp, description: "Get ₹60 off on any order, no minimum purchase required" },
+    { id: 3, points: 1000, reward: "Free Delivery (1 month)", icon: Zap, description: "Enjoy free delivery on all orders for the next 30 days" },
   ];
 
   if (isLoading) {
@@ -93,11 +97,16 @@ export default function LoyaltyPoints() {
           <div>
             <h2 className="text-2xl font-bold mb-6">Available Rewards</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {rewards.map((reward, idx) => {
+              {rewards.map((reward) => {
                 const Icon = reward.icon;
                 const canRedeem = (points?.balance || 0) >= reward.points;
                 return (
-                  <Card key={idx} className="p-6 border" data-testid={`card-reward-${idx}`}>
+                  <Card 
+                    key={reward.id} 
+                    className="p-6 border cursor-pointer hover-elevate"
+                    onClick={() => setSelectedReward(reward)}
+                    data-testid={`card-reward-${reward.id}`}
+                  >
                     <div className="bg-primary/10 w-12 h-12 rounded flex items-center justify-center mb-4">
                       <Icon className="w-6 h-6 text-primary" />
                     </div>
@@ -106,7 +115,11 @@ export default function LoyaltyPoints() {
                     <Button
                       className="w-full"
                       disabled={!canRedeem}
-                      data-testid={`button-redeem-${idx}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedReward(reward);
+                      }}
+                      data-testid={`button-redeem-${reward.id}`}
                     >
                       {canRedeem ? 'Redeem' : 'Not Enough Points'}
                     </Button>
@@ -117,6 +130,50 @@ export default function LoyaltyPoints() {
           </div>
         </div>
       </main>
+
+      {/* Reward Details Modal */}
+      <Dialog open={!!selectedReward} onOpenChange={() => setSelectedReward(null)}>
+        <DialogContent data-testid="modal-reward-details">
+          <DialogHeader>
+            <DialogTitle>{selectedReward?.reward}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="bg-primary/10 w-16 h-16 rounded flex items-center justify-center">
+              {selectedReward && <selectedReward.icon className="w-8 h-8 text-primary" />}
+            </div>
+            <div className="space-y-4">
+              <div className="border rounded-lg p-4">
+                <p className="text-sm text-muted-foreground mb-2">Points Required</p>
+                <p className="text-3xl font-bold">{selectedReward?.points}</p>
+              </div>
+              <div className="border rounded-lg p-4">
+                <p className="text-sm text-muted-foreground mb-2">Your Balance</p>
+                <p className="text-3xl font-bold text-primary">{points?.balance || 0}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">Description</p>
+                <p className="text-base">{selectedReward?.description}</p>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-4 border-t">
+              <Button 
+                className="flex-1"
+                disabled={(points?.balance || 0) < (selectedReward?.points || 0)}
+                data-testid="button-confirm-redeem"
+              >
+                Redeem Now
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => setSelectedReward(null)}
+                data-testid="button-close-reward-modal"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Footer />
     </div>

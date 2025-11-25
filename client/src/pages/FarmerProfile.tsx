@@ -1,4 +1,5 @@
 import { useParams } from "wouter";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Header from "@/components/Header";
@@ -8,11 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Star, MapPin, Leaf, Shield, TrendingUp } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import ProductCard from "@/components/ProductCard";
+import ProductDetailsModal from "@/components/ProductDetailsModal";
 import VerificationBadge from "@/components/VerificationBadge";
 import { Loader } from "lucide-react";
 
 export default function FarmerProfile() {
   const { id } = useParams<{ id: string }>();
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
   const { data: farmer, isLoading } = useQuery({
     queryKey: ["/api/farmers", id],
@@ -27,6 +30,8 @@ export default function FarmerProfile() {
         r.json().catch(() => [])
       ),
   });
+
+  const selectedProduct = products.find((p: any) => p.id === selectedProductId);
 
   if (isLoading) {
     return (
@@ -115,6 +120,7 @@ export default function FarmerProfile() {
                     inStock={product.inStock}
                     lowStock={product.lowStock}
                     weight={product.weight}
+                    onClick={() => setSelectedProductId(product.id)}
                   />
                 ))}
               </div>
@@ -122,6 +128,12 @@ export default function FarmerProfile() {
           </div>
         </div>
       </main>
+
+      <ProductDetailsModal
+        isOpen={!!selectedProductId}
+        onClose={() => setSelectedProductId(null)}
+        product={selectedProduct}
+      />
 
       <Footer />
     </div>

@@ -5,6 +5,7 @@ import { apiRequest } from "@/lib/queryClient";
 import SearchBar from "@/components/SearchBar";
 import FilterPanel from "@/components/FilterPanel";
 import ProductCard from "@/components/ProductCard";
+import ProductDetailsModal from "@/components/ProductDetailsModal";
 import { Loader } from "lucide-react";
 
 export default function Shop() {
@@ -17,6 +18,8 @@ export default function Shop() {
     inStock: params.get("inStock") === "true",
     sortBy: params.get("sort") || "newest",
   });
+
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
   const queryParams = new URLSearchParams();
   if (filters.search) queryParams.set("search", filters.search);
@@ -32,6 +35,8 @@ export default function Shop() {
         r.json().catch(() => [])
       ),
   });
+
+  const selectedProduct = products.find((p: any) => p.id === selectedProductId);
 
   const sorted = useMemo(() => {
     let sorted = [...products];
@@ -90,6 +95,7 @@ export default function Shop() {
                     inStock={product.inStock}
                     lowStock={product.lowStock}
                     weight={product.weight}
+                    onClick={() => setSelectedProductId(product.id)}
                   />
                 ))}
               </div>
@@ -97,6 +103,15 @@ export default function Shop() {
           </div>
         </div>
       </div>
+
+      <ProductDetailsModal
+        isOpen={!!selectedProductId}
+        onClose={() => setSelectedProductId(null)}
+        product={selectedProduct}
+        onAddToCart={(id) => {
+          console.log("Add to cart:", id);
+        }}
+      />
     </div>
   );
 }
