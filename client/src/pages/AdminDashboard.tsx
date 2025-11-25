@@ -85,6 +85,40 @@ export default function AdminDashboard() {
     },
   });
 
+  const rejectFarmerMutation = useMutation({
+    mutationFn: async (farmerId: string) => {
+      const res = await fetch(`/api/admin/farmers/${farmerId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Rejected by admin" }),
+      });
+      if (!res.ok) throw new Error("Failed to reject");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/farmers/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      toast({ title: "Success", description: "Farmer rejected and removed" });
+    },
+  });
+
+  const rejectProductMutation = useMutation({
+    mutationFn: async (productId: string) => {
+      const res = await fetch(`/api/admin/products/${productId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Rejected by admin" }),
+      });
+      if (!res.ok) throw new Error("Failed to reject");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/products/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      toast({ title: "Success", description: "Product rejected and removed" });
+    },
+  });
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
       <Header cartItemCount={0} />
@@ -173,15 +207,26 @@ export default function AdminDashboard() {
                           <span className="inline-block px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-100 text-xs font-semibold rounded-full capitalize">{farmer.farmingType}</span>
                         </div>
                       </div>
-                      <Button
-                        onClick={() => approveFarmerMutation.mutate(farmer.userId)}
-                        disabled={approveFarmerMutation.isPending}
-                        className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold"
-                        data-testid={`button-approve-farmer-${farmer.userId}`}
-                      >
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Approve Farmer
-                      </Button>
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={() => approveFarmerMutation.mutate(farmer.userId)}
+                          disabled={approveFarmerMutation.isPending || rejectFarmerMutation.isPending}
+                          className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold"
+                          data-testid={`button-approve-farmer-${farmer.userId}`}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Approve
+                        </Button>
+                        <Button
+                          onClick={() => rejectFarmerMutation.mutate(farmer.userId)}
+                          disabled={rejectFarmerMutation.isPending || approveFarmerMutation.isPending}
+                          variant="destructive"
+                          className="flex-1"
+                          data-testid={`button-reject-farmer-${farmer.userId}`}
+                        >
+                          ✕ Reject
+                        </Button>
+                      </div>
                     </Card>
                   ))}
                 </div>
@@ -214,15 +259,26 @@ export default function AdminDashboard() {
                           <span className="text-sm text-slate-900 dark:text-slate-50">{product.origin}</span>
                         </div>
                       </div>
-                      <Button
-                        onClick={() => approveProductMutation.mutate(product.id)}
-                        disabled={approveProductMutation.isPending}
-                        className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold"
-                        data-testid={`button-approve-product-${product.id}`}
-                      >
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Approve Product
-                      </Button>
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={() => approveProductMutation.mutate(product.id)}
+                          disabled={approveProductMutation.isPending || rejectProductMutation.isPending}
+                          className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold"
+                          data-testid={`button-approve-product-${product.id}`}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Approve
+                        </Button>
+                        <Button
+                          onClick={() => rejectProductMutation.mutate(product.id)}
+                          disabled={rejectProductMutation.isPending || approveProductMutation.isPending}
+                          variant="destructive"
+                          className="flex-1"
+                          data-testid={`button-reject-product-${product.id}`}
+                        >
+                          ✕ Reject
+                        </Button>
+                      </div>
                     </Card>
                   ))}
                 </div>

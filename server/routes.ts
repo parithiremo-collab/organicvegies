@@ -1068,6 +1068,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Reject farmer
+  app.post("/api/admin/farmers/:id/reject", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      
+      const deleted = await db.delete(farmerProfiles)
+        .where(eq(farmerProfiles.userId, id))
+        .returning();
+      
+      await db.insert(auditLogs).values({
+        adminId: req.user.claims.sub,
+        action: "REJECT_FARMER",
+        targetType: "farmer",
+        targetId: id,
+        details: { farmerName: deleted[0]?.farmName, reason: reason || "Not specified" },
+      });
+      
+      res.json({ success: true, message: "Farmer rejected and removed" });
+    } catch (error) {
+      console.error("Error rejecting farmer:", error);
+      res.status(500).json({ error: "Failed to reject farmer" });
+    }
+  });
+
+  // Admin: Reject product
+  app.post("/api/admin/products/:id/reject", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      
+      const deleted = await db.delete(products)
+        .where(eq(products.id, id))
+        .returning();
+      
+      await db.insert(auditLogs).values({
+        adminId: req.user.claims.sub,
+        action: "REJECT_PRODUCT",
+        targetType: "product",
+        targetId: id,
+        details: { productName: deleted[0]?.name, reason: reason || "Not specified" },
+      });
+      
+      res.json({ success: true, message: "Product rejected and removed" });
+    } catch (error) {
+      console.error("Error rejecting product:", error);
+      res.status(500).json({ error: "Failed to reject product" });
+    }
+  });
+
   // SUPER ADMIN ROUTES
   // SuperAdmin: Get platform stats
   app.get("/api/superadmin/stats", isAuthenticated, async (req: any, res) => {
